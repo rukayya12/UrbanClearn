@@ -1,0 +1,108 @@
+<div class="dashboard-container">
+  <div class="dashboard-header">
+    <h1>Welcome, {{ currentUser?.fullName }}! 👋</h1>
+    <p>Manage your waste collection requests and track your environmental impact</p>
+  </div>
+
+  <!-- Statistics Cards -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon">📋</div>
+      <div class="stat-content">
+        <h3>Total Requests</h3>
+        <p class="stat-value">{{ totalRequests }}</p>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon">⏳</div>
+      <div class="stat-content">
+        <h3>Pending</h3>
+        <p class="stat-value" style="color: #f39c12;">{{ pendingRequests }}</p>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon">✅</div>
+      <div class="stat-content">
+        <h3>Completed</h3>
+        <p class="stat-value" style="color: #27ae60;">{{ completedRequests }}</p>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon">🏆</div>
+      <div class="stat-content">
+        <h3>Green Points</h3>
+        <p class="stat-value" style="color: #16a085;">{{ greenPoints }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="dashboard-content">
+    <!-- Quick Actions -->
+    <section class="quick-actions">
+      <h2>Quick Actions</h2>
+      <div class="actions-grid">
+        <button class="action-btn" (click)="createNewRequest()">
+          <span class="icon">➕</span>
+          Request Collection
+        </button>
+        <button class="action-btn" (click)="viewAllRequests()">
+          <span class="icon">📋</span>
+          View My Requests
+        </button>
+        <button class="action-btn" (click)="viewRewards()">
+          <span class="icon">🏆</span>
+          View Rewards
+        </button>
+        <button class="action-btn">
+          <span class="icon">🗺️</span>
+          View Map
+        </button>
+      </div>
+    </section>
+
+    <!-- Recent Requests -->
+    <section class="recent-requests">
+      <div class="section-header">
+        <h2>Recent Requests</h2>
+        <a href="javascript:void(0)" (click)="viewAllRequests()" class="view-all-link">View All →</a>
+      </div>
+
+      <div *ngIf="recentRequests.length > 0; else noRequests" class="requests-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Request ID</th>
+              <th>Waste Type</th>
+              <th>Status</th>
+              <th>Created Date</th>
+              <th>Points</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let req of recentRequests">
+              <td><strong>{{ req.id }}</strong></td>
+              <td>{{ req.wasteTypes.join(', ') }}</td>
+              <td>
+                <span class="status-badge" [style.background-color]="getStatusColor(req.status)">
+                  {{ getStatusLabel(req.status) }}
+                </span>
+              </td>
+              <td>{{ req.createdAt | date: 'short' }}</td>
+              <td>{{ req.greenPoints || 0 }} pts</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <ng-template #noRequests>
+        <div class="empty-state">
+          <p>📭 No requests yet. Start by creating a new waste collection request!</p>
+          <button class="btn btn-primary" (click)="createNewRequest()">Create Request</button>
+        </div>
+      </ng-template>
+    </section>
+  </div>
+</div>

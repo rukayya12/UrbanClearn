@@ -1,0 +1,105 @@
+<div class="login-container">
+  <div class="login-card">
+    <div class="login-header">
+      <h1>UrbanClean</h1>
+      <p>Digital Waste Collection & Recycling Platform</p>
+    </div>
+
+    <form [formGroup]="loginForm" (ngSubmit)="login()" class="login-form">
+      <!-- Error Message -->
+      <div *ngIf="errorMessage" class="alert alert-error">
+        {{ errorMessage }}
+      </div>
+
+      <!-- Success Message -->
+      <div *ngIf="successMessage" class="alert alert-success">
+        {{ successMessage }}
+      </div>
+
+      <!-- Email Field -->
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <input
+          type="email"
+          id="email"
+          formControlName="email"
+          placeholder="Enter your email"
+          class="form-control"
+          [class.is-invalid]="loginForm.get('email')?.invalid && loginForm.get('email')?.touched"
+        />
+        <small *ngIf="loginForm.get('email')?.invalid && loginForm.get('email')?.touched" class="error-text">
+          Please enter a valid email
+        </small>
+      </div>
+
+      <!-- Password Field -->
+      <div class="form-group">
+        <label for="password">Password</label>
+        <div class="password-input-group">
+          <input
+            [type]="showPassword ? 'text' : 'password'"
+            id="password"
+            formControlName="password"
+            placeholder="Enter your password"
+            class="form-control"
+            [class.is-invalid]="loginForm.get('password')?.invalid && loginForm.get('password')?.touched"
+          />
+          <button
+            type="button"
+            class="password-toggle"
+            (click)="togglePasswordVisibility()"
+            title="Toggle password visibility"
+          >
+            {{ showPassword ? '👁️' : '🔒' }}
+          </button>
+        </div>
+        <small *ngIf="loginForm.get('password')?.invalid && loginForm.get('password')?.touched" class="error-text">
+          Password must be at least 6 characters
+        </small>
+      </div>
+
+      <!-- Remember Me -->
+      <div class="form-group checkbox">
+        <input type="checkbox" id="rememberMe" formControlName="rememberMe" />
+        <label for="rememberMe">Remember me</label>
+      </div>
+
+      <!-- Login Button -->
+      <button
+        type="submit"
+        class="btn btn-primary btn-block"
+        [disabled]="loginForm.invalid || loading"
+      >
+        {{ loading ? 'Logging in...' : 'Login' }}
+      </button>
+    </form>
+
+    <!-- Demo Accounts Section -->
+    <div class="demo-section">
+      <p>Demo Accounts (for testing):</p>
+      <div class="demo-buttons">
+        <button type="button" class="demo-btn" (click)="fillDemoAccount('super-admin')">
+          Super Admin
+        </button>
+        <button type="button" class="demo-btn" (click)="fillDemoAccount('admin')">
+          Admin
+        </button>
+        <button type="button" class="demo-btn" (click)="fillDemoAccount('user')">
+          User
+        </button>
+        <button type="button" class="demo-btn" (click)="fillDemoAccount('collector')">
+          Collector
+        </button>
+        <button type="button" class="demo-btn" (click)="fillDemoAccount('centre')">
+          Centre
+        </button>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="login-footer">
+      <p>Don't have an account? <a href="javascript:void(0)" (click)="goToRegister()">Register here</a></p>
+      <p><a href="javascript:void(0)">Forgot your password?</a></p>
+    </div>
+  </div>
+</div>

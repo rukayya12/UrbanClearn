@@ -1,0 +1,126 @@
+<div class="request-create-container">
+  <div class="form-header">
+    <button class="back-btn" (click)="goBack()">← Back</button>
+    <h1>Request Waste Collection</h1>
+    <p>Schedule a waste collection at your location</p>
+  </div>
+
+  <div class="form-card">
+    <form [formGroup]="requestForm" (ngSubmit)="createRequest()">
+      <!-- Messages -->
+      <div *ngIf="errorMessage" class="message error-message">
+        ❌ {{ errorMessage }}
+      </div>
+      <div *ngIf="successMessage" class="message success-message">
+        ✅ {{ successMessage }}
+      </div>
+
+      <!-- Waste Type Selection -->
+      <fieldset class="form-section">
+        <legend>Waste Types <span class="required">*</span></legend>
+        <div class="waste-types-grid">
+          <label *ngFor="let type of wasteTypeOptions" class="waste-type-label">
+            <input
+              type="checkbox"
+              [checked]="selectedWasteTypes.includes(type)"
+              (change)="toggleWasteType(type)"
+            />
+            <span class="checkbox-label">
+              {{ type | uppercase }}
+            </span>
+          </label>
+        </div>
+      </fieldset>
+
+      <!-- Location -->
+      <fieldset class="form-section">
+        <legend>Location <span class="required">*</span></legend>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label for="latitude">Latitude</label>
+            <input
+              id="latitude"
+              type="number"
+              formControlName="latitude"
+              step="0.0001"
+              placeholder="e.g., -6.7924"
+              [class.error]="requestForm.get('latitude')?.invalid && requestForm.get('latitude')?.touched"
+            />
+          </div>
+          <div class="form-group">
+            <label for="longitude">Longitude</label>
+            <input
+              id="longitude"
+              type="number"
+              formControlName="longitude"
+              step="0.0001"
+              placeholder="e.g., 39.2083"
+              [class.error]="requestForm.get('longitude')?.invalid && requestForm.get('longitude')?.touched"
+            />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="address">Address</label>
+          <input
+            id="address"
+            type="text"
+            formControlName="address"
+            placeholder="Enter your address"
+            [class.error]="requestForm.get('address')?.invalid && requestForm.get('address')?.touched"
+          />
+        </div>
+      </fieldset>
+
+      <!-- Request Time -->
+      <fieldset class="form-section">
+        <legend>Preferred Collection Time <span class="required">*</span></legend>
+        
+        <div class="form-group">
+          <label for="requestedTime">Date & Time</label>
+          <input
+            id="requestedTime"
+            type="datetime-local"
+            formControlName="requestedTime"
+            [class.error]="requestForm.get('requestedTime')?.invalid && requestForm.get('requestedTime')?.touched"
+          />
+        </div>
+      </fieldset>
+
+      <!-- Description -->
+      <fieldset class="form-section">
+        <legend>Additional Details (Optional)</legend>
+        
+        <div class="form-group">
+          <label for="description">Description</label>
+          <textarea
+            id="description"
+            formControlName="description"
+            placeholder="Describe the waste (e.g., type, quantity, special handling required)"
+            rows="4"
+          ></textarea>
+        </div>
+      </fieldset>
+
+      <!-- Submit -->
+      <div class="form-actions">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="goBack()"
+          [disabled]="loading"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          class="btn btn-primary"
+          [disabled]="loading"
+        >
+          {{ loading ? 'Creating...' : 'Create Request' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

@@ -1,0 +1,33 @@
+<aside class="sidebar" [class.collapsed]="isCollapsed">
+  <div class="sidebar-header">
+    <div class="logo">🌱</div>
+    <h1 *ngIf="!isCollapsed">UrbanClean</h1>
+    <button class="toggle-btn" (click)="toggleSidebar()">
+      {{ isCollapsed ? '→' : '←' }}
+    </button>
+  </div>
+
+  <nav class="sidebar-nav">
+    <ul class="nav-items">
+      <li *ngFor="let item of menuItems" class="nav-item">
+        <a 
+          [routerLink]="item.route" 
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{ exact: true }"
+          class="nav-link"
+          [title]="item.label"
+        >
+          <span class="icon">{{ item.icon }}</span>
+          <span *ngIf="!isCollapsed" class="label">{{ item.label }}</span>
+        </a>
+      </li>
+    </ul>
+  </nav>
+
+  <div class="sidebar-footer">
+    <button class="logout-btn" (click)="logout()" [title]="'Logout'">
+      <span class="icon">🚪</span>
+      <span *ngIf="!isCollapsed">Logout</span>
+    </button>
+  </div>
+</aside>

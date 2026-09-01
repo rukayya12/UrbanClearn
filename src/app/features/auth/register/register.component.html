@@ -1,0 +1,216 @@
+<div class="register-container">
+  <div class="register-card">
+    <div class="register-header">
+      <h1>Create Account</h1>
+      <p>Join UrbanClean - Digital Waste Collection & Recycling</p>
+    </div>
+
+    <form [formGroup]="registerForm" (ngSubmit)="register()" class="register-form">
+      <!-- Error Message -->
+      <div *ngIf="errorMessage" class="alert alert-error">
+        {{ errorMessage }}
+      </div>
+
+      <!-- Success Message -->
+      <div *ngIf="successMessage" class="alert alert-success">
+        {{ successMessage }}
+      </div>
+
+      <!-- Full Name -->
+      <div class="form-group">
+        <label for="fullName">Full Name *</label>
+        <input
+          type="text"
+          id="fullName"
+          formControlName="fullName"
+          placeholder="Enter your full name"
+          class="form-control"
+          [class.is-invalid]="registerForm.get('fullName')?.invalid && registerForm.get('fullName')?.touched"
+        />
+        <small *ngIf="registerForm.get('fullName')?.invalid && registerForm.get('fullName')?.touched" class="error-text">
+          {{ getErrorMessage('fullName') }}
+        </small>
+      </div>
+
+      <!-- Email -->
+      <div class="form-row">
+        <div class="form-group">
+          <label for="email">Email Address *</label>
+          <input
+            type="email"
+            id="email"
+            formControlName="email"
+            placeholder="your@email.com"
+            class="form-control"
+            [class.is-invalid]="registerForm.get('email')?.invalid && registerForm.get('email')?.touched"
+          />
+          <small *ngIf="registerForm.get('email')?.invalid && registerForm.get('email')?.touched" class="error-text">
+            {{ getErrorMessage('email') }}
+          </small>
+        </div>
+
+        <!-- Phone -->
+        <div class="form-group">
+          <label for="phone">Phone Number *</label>
+          <input
+            type="tel"
+            id="phone"
+            formControlName="phone"
+            placeholder="+255..."
+            class="form-control"
+            [class.is-invalid]="registerForm.get('phone')?.invalid && registerForm.get('phone')?.touched"
+          />
+          <small *ngIf="registerForm.get('phone')?.invalid && registerForm.get('phone')?.touched" class="error-text">
+            {{ getErrorMessage('phone') }}
+          </small>
+        </div>
+      </div>
+
+      <!-- Location Fields -->
+      <div class="section-title">Location Information</div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="region">Region *</label>
+          <select id="region" formControlName="region" class="form-control">
+            <option value="">Select Region</option>
+            <option value="Zanzibar">Zanzibar</option>
+            <option value="Dar es Salaam">Dar es Salaam</option>
+            <option value="Arusha">Arusha</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="district">District *</label>
+          <input
+            type="text"
+            id="district"
+            formControlName="district"
+            placeholder="District"
+            class="form-control"
+          />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="city">City *</label>
+          <input
+            type="text"
+            id="city"
+            formControlName="city"
+            placeholder="City"
+            class="form-control"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="location">Location *</label>
+          <input
+            type="text"
+            id="location"
+            formControlName="location"
+            placeholder="Street address"
+            class="form-control"
+          />
+        </div>
+      </div>
+
+      <!-- Coordinates -->
+      <div class="section-title">GPS Coordinates</div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="latitude">Latitude *</label>
+          <input
+            type="number"
+            id="latitude"
+            formControlName="latitude"
+            placeholder="-6.1639"
+            step="0.0001"
+            class="form-control"
+            (change)="getLocationFromCoordinates()"
+          />
+          <small *ngIf="registerForm.get('latitude')?.invalid && registerForm.get('latitude')?.touched" class="error-text">
+            Valid range: -90 to 90
+          </small>
+        </div>
+
+        <div class="form-group">
+          <label for="longitude">Longitude *</label>
+          <input
+            type="number"
+            id="longitude"
+            formControlName="longitude"
+            placeholder="35.7461"
+            step="0.0001"
+            class="form-control"
+            (change)="getLocationFromCoordinates()"
+          />
+          <small *ngIf="registerForm.get('longitude')?.invalid && registerForm.get('longitude')?.touched" class="error-text">
+            Valid range: -180 to 180
+          </small>
+        </div>
+      </div>
+
+      <!-- Password Section -->
+      <div class="section-title">Security</div>
+
+      <div class="form-group">
+        <label for="password">Password (min 8 characters) *</label>
+        <div class="password-input-group">
+          <input
+            [type]="showPassword ? 'text' : 'password'"
+            id="password"
+            formControlName="password"
+            placeholder="Create a strong password"
+            class="form-control"
+          />
+          <button
+            type="button"
+            class="password-toggle"
+            (click)="togglePasswordVisibility()"
+          >
+            {{ showPassword ? '👁️' : '🔒' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="confirmPassword">Confirm Password *</label>
+        <input
+          [type]="showPassword ? 'text' : 'password'"
+          id="confirmPassword"
+          formControlName="confirmPassword"
+          placeholder="Confirm your password"
+          class="form-control"
+        />
+        <small *ngIf="registerForm.errors?.['passwordMismatch']" class="error-text">
+          Passwords do not match
+        </small>
+      </div>
+
+      <!-- Terms -->
+      <div class="form-group checkbox">
+        <input type="checkbox" id="acceptTerms" formControlName="acceptTerms" />
+        <label for="acceptTerms">
+          I agree to the Terms and Conditions *
+        </label>
+      </div>
+
+      <!-- Submit Button -->
+      <button
+        type="submit"
+        class="btn btn-primary btn-block"
+        [disabled]="registerForm.invalid || loading"
+      >
+        {{ loading ? 'Creating Account...' : 'Create Account' }}
+      </button>
+    </form>
+
+    <!-- Footer -->
+    <div class="register-footer">
+      <p>Already have an account? <a href="javascript:void(0)" (click)="goToLogin()">Login here</a></p>
+    </div>
+  </div>
+</div>
