@@ -5,6 +5,8 @@ import { Subscription } from 'rxjs';
 import { RequestService } from '../../../core/services/request.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { UserService } from '../../../core/services/user.service';
+import { LocationService } from '../../../core/services/location.service';
+import { CollectorRecommendation } from '../../../core/services/request.service';
 import { WasteRequest } from '../../../core/models/request.model';
 import { User } from '../../../core/models/user.model';
 
@@ -47,7 +49,12 @@ import { User } from '../../../core/models/user.model';
             <select id="statusFilter" [(ngModel)]="statusFilter" (ngModelChange)="applyFilters()" class="filter-select">
               <option value="all">All</option>
               <option value="pending">Pending</option>
-              <option value="accepted">Accepted</option>
+              <option value="assigned">Assigned</option>
+              <option value="time-proposed">Time Proposed</option>
+              <option value="reschedule-required">Reschedule Required</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="on-the-way">On the Way</option>
+              <option value="collected">Collected</option>
               <option value="completed">Completed</option>
               <option value="rejected">Rejected</option>
             </select>
@@ -70,8 +77,9 @@ import { User } from '../../../core/models/user.model';
                 <th>User Name</th>
                 <th>Waste Type</th>
                 <th>Location</th>
-                <th>Date</th>
-                <th>Time</th>
+                <th>Preferred Date</th>
+                <th>Preferred Time</th>
+                <th>Collector</th>
                 <th>Status</th>
                 <th class="actions-header">Actions</th>
               </tr>
@@ -102,8 +110,9 @@ import { User } from '../../../core/models/user.model';
                     📍 {{ req.location?.address || 'Zanzibar' }}
                   </span>
                 </td>
-                <td class="date-cell">{{ req.requestedTime | date:'dd/MM/yyyy' }}</td>
-                <td class="time-cell">{{ req.requestedTime | date:'shortTime' }}</td>
+                <td class="date-cell">{{ req.preferredDate ? (req.preferredDate | date:'dd/MM/yyyy') : 'No preference' }}</td>
+                <td class="time-cell">{{ req.preferredTime || 'No preference' }}</td>
+                <td>{{ req.collectorName || 'Not assigned' }}</td>
                 <td>
                   <span class="status-pill" [ngClass]="'status-' + (req.status | lowercase)">
                     {{ getStatusLabel(req.status) }}
@@ -115,19 +124,11 @@ import { User } from '../../../core/models/user.model';
                       👁️ View
                     </button>
                     
-                    <div class="status-dropdown-wrapper">
-                      <select 
-                        [ngModel]="req.status | lowercase" 
-                        (ngModelChange)="onQuickStatusChange(req, $event)"
-                        class="status-select-action"
-                        title="Change status"
-                      >
-                        <option value="pending">Pending</option>
-                        <option value="accepted">Accepted</option>
-                        <option value="completed">Completed</option>
-                        <option value="rejected">Rejected</option>
-                      </select>
-                    </div>
+                    <button *ngIf="req.status === 'pending'" class="btn-action btn-assign" (click)="openAssignment(req)">Assign Collector</button>
+                    <ng-container *ngIf="req.status === 'time-proposed'">
+                      <button class="btn-action btn-accept" (click)="approveTime(req)">Approve Time</button>
+                      <button class="btn-action btn-reject" (click)="requestDifferentTime(req)">Request Different Time</button>
+                    </ng-container>
                   </div>
                 </td>
               </tr>
@@ -176,8 +177,20 @@ import { User } from '../../../core/models/user.model';
                 <span class="val">📍 {{ req.location?.address || 'Zanzibar' }}</span>
               </div>
               <div class="mobile-detail-row">
-                <span class="lbl">Date & Time:</span>
-                <span class="val">{{ req.requestedTime | date:'dd/MM/yyyy' }} at {{ req.requestedTime | date:'shortTime' }}</span>
+                <span class="lbl">Preferred:</span>
+                <span class="val">{{ req.preferredDate ? (req.preferredDate | date:'dd/MM/yyyy') : 'No date' }} {{ req.preferredTime || '' }}</span>
+              </div>
+              <div class="mobile-detail-row">
+                <span class="lbl">Collector:</span>
+                <span class="val">{{ req.collectorName || 'Not assigned' }}</span>
+              </div>
+              <div class="mobile-detail-row" *ngIf="req.proposedCollectionDate">
+                <span class="lbl">Proposed:</span>
+                <span class="val">{{ req.proposedCollectionDate | date:'dd/MM/yyyy' }} at {{ req.proposedCollectionTime }}</span>
+              </div>
+              <div class="mobile-detail-row" *ngIf="req.confirmedCollectionDate">
+                <span class="lbl">Confirmed:</span>
+                <span class="val">{{ req.confirmedCollectionDate | date:'dd/MM/yyyy' }} at {{ req.confirmedCollectionTime }}</span>
               </div>
             </div>
 
@@ -187,27 +200,11 @@ import { User } from '../../../core/models/user.model';
               </button>
 
               <div class="mobile-status-actions">
-                <button 
-                  *ngIf="(req.status | lowercase) !== 'accepted'" 
-                  class="btn-action btn-accept" 
-                  (click)="updateStatus(req, 'accepted')"
-                >
-                  ✓ Accept
-                </button>
-                <button 
-                  *ngIf="(req.status | lowercase) === 'accepted'" 
-                  class="btn-action btn-complete" 
-                  (click)="updateStatus(req, 'completed')"
-                >
-                  🏆 Complete
-                </button>
-                <button 
-                  *ngIf="(req.status | lowercase) !== 'rejected' && (req.status | lowercase) !== 'completed'" 
-                  class="btn-action btn-reject" 
-                  (click)="updateStatus(req, 'rejected')"
-                >
-                  ✕ Reject
-                </button>
+                <button *ngIf="req.status === 'pending'" class="btn-action btn-assign" (click)="openAssignment(req)">Assign Collector</button>
+                <ng-container *ngIf="req.status === 'time-proposed'">
+                  <button class="btn-action btn-accept" (click)="approveTime(req)">Approve Time</button>
+                  <button class="btn-action btn-reject" (click)="requestDifferentTime(req)">Request Different Time</button>
+                </ng-container>
               </div>
             </div>
           </div>
@@ -271,12 +268,12 @@ import { User } from '../../../core/models/user.model';
                 <span class="detail-value">{{ selectedRequest.userPhone || 'Not provided' }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Scheduled Date</span>
-                <span class="detail-value">{{ selectedRequest.requestedTime | date:'dd/MM/yyyy' }}</span>
+                <span class="detail-label">Preferred Date</span>
+                <span class="detail-value">{{ selectedRequest.preferredDate ? (selectedRequest.preferredDate | date:'dd/MM/yyyy') : 'No preference' }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Scheduled Time</span>
-                <span class="detail-value">{{ selectedRequest.requestedTime | date:'shortTime' }}</span>
+                <span class="detail-label">Preferred Time</span>
+                <span class="detail-value">{{ selectedRequest.preferredTime || 'No preference' }}</span>
               </div>
               <div class="detail-item full-width">
                 <span class="detail-label">Waste Types</span>
@@ -292,6 +289,19 @@ import { User } from '../../../core/models/user.model';
                 <span class="detail-coords" *ngIf="selectedRequest.location?.latitude">
                   (Lat: {{ selectedRequest.location?.latitude }}, Long: {{ selectedRequest.location?.longitude }})
                 </span>
+                <span class="detail-coords" *ngIf="!hasRequestCoordinates(selectedRequest)">Distance unavailable: request coordinates were not provided.</span>
+              </div>
+              <div class="detail-item" *ngIf="selectedRequest.collectorName">
+                <span class="detail-label">Assigned Collector</span>
+                <span class="detail-value">{{ selectedRequest.collectorName }} ({{ selectedRequest.collectorId }})</span>
+              </div>
+              <div class="detail-item" *ngIf="selectedRequest.proposedCollectionDate">
+                <span class="detail-label">Proposed Collection</span>
+                <span class="detail-value">{{ selectedRequest.proposedCollectionDate | date:'mediumDate' }} at {{ selectedRequest.proposedCollectionTime }}</span>
+              </div>
+              <div class="detail-item" *ngIf="selectedRequest.confirmedCollectionDate">
+                <span class="detail-label">Confirmed Collection</span>
+                <span class="detail-value">{{ selectedRequest.confirmedCollectionDate | date:'mediumDate' }} at {{ selectedRequest.confirmedCollectionTime }}</span>
               </div>
               <div class="detail-item full-width" *ngIf="selectedRequest.description">
                 <span class="detail-label">Description / Instructions</span>
@@ -303,38 +313,14 @@ import { User } from '../../../core/models/user.model';
               </div>
             </div>
 
-            <!-- Status Action Controller inside Modal -->
-            <div class="status-manager-box">
-              <label class="detail-label">Change Status:</label>
+            <div class="status-manager-box" *ngIf="selectedRequest.status === 'pending' || selectedRequest.status === 'time-proposed'">
+              <label class="detail-label">Available Admin Actions</label>
               <div class="status-buttons-row">
-                <button 
-                  class="btn-status btn-status-pending" 
-                  [class.active-status]="(selectedRequest.status | lowercase) === 'pending'"
-                  (click)="updateStatus(selectedRequest, 'pending')"
-                >
-                  Pending
-                </button>
-                <button 
-                  class="btn-status btn-status-accepted" 
-                  [class.active-status]="(selectedRequest.status | lowercase) === 'accepted'"
-                  (click)="updateStatus(selectedRequest, 'accepted')"
-                >
-                  Accepted
-                </button>
-                <button 
-                  class="btn-status btn-status-completed" 
-                  [class.active-status]="(selectedRequest.status | lowercase) === 'completed'"
-                  (click)="updateStatus(selectedRequest, 'completed')"
-                >
-                  Completed
-                </button>
-                <button 
-                  class="btn-status btn-status-rejected" 
-                  [class.active-status]="(selectedRequest.status | lowercase) === 'rejected'"
-                  (click)="updateStatus(selectedRequest, 'rejected')"
-                >
-                  Rejected
-                </button>
+                <button *ngIf="selectedRequest.status === 'pending'" class="btn-action btn-assign" (click)="openAssignment(selectedRequest)">Assign Collector</button>
+                <ng-container *ngIf="selectedRequest.status === 'time-proposed'">
+                  <button class="btn-action btn-accept" (click)="approveTime(selectedRequest)">Approve Time</button>
+                  <button class="btn-action btn-reject" (click)="requestDifferentTime(selectedRequest)">Request Different Time</button>
+                </ng-container>
               </div>
             </div>
           </div>
@@ -343,6 +329,43 @@ import { User } from '../../../core/models/user.model';
             <button class="btn btn-secondary" (click)="closeDetails()">Close</button>
           </div>
         </div>
+      </div>
+
+      <div class="modal-backdrop" *ngIf="assignmentRequest" (click)="closeAssignment()">
+        <section class="assignment-modal" role="dialog" aria-modal="true" aria-labelledby="assignment-title" (click)="$event.stopPropagation()">
+          <header class="assignment-header">
+            <div>
+              <span class="modal-eyebrow">NEARBY COLLECTORS</span>
+              <h2 id="assignment-title">Assign {{ assignmentRequest.id }}</h2>
+              <p>{{ assignmentRequest.location.address }} · Preferred {{ assignmentRequest.preferredDate || 'date not set' }} {{ assignmentRequest.preferredTime || '' }}</p>
+            </div>
+            <button class="modal-close-btn" aria-label="Close collector selection" (click)="closeAssignment()">&times;</button>
+          </header>
+
+          <p *ngIf="assignmentMessage" class="assignment-message">{{ assignmentMessage }}</p>
+          <div *ngIf="collectorRecommendations.length === 0" class="no-collectors">No active Collectors are registered yet.</div>
+          <div class="collector-options">
+            <article *ngFor="let option of collectorRecommendations" class="collector-option" [class.recommended]="option.collector.id === recommendedCollectorId" [class.unavailable]="!option.isAvailable">
+              <div class="collector-option-main">
+                <div>
+                  <div class="collector-heading">
+                    <strong>{{ option.collector.id }}</strong>
+                    <span *ngIf="option.collector.id === recommendedCollectorId" class="recommended-label">Recommended</span>
+                  </div>
+                  <span class="collector-name">{{ option.collector.fullName }}</span>
+                </div>
+                <span class="availability" [class.available]="option.isAvailable">{{ option.isAvailable ? 'Available' : 'Unavailable' }}</span>
+              </div>
+              <dl class="collector-details">
+                <div><dt>Registered location</dt><dd>{{ option.collector.location?.address || 'Not provided' }}</dd></div>
+                <div><dt>Distance</dt><dd>{{ formatDistance(option.distanceMeters) }}</dd></div>
+                <div><dt>Current assignments</dt><dd>{{ option.currentAssignments }}</dd></div>
+              </dl>
+              <p *ngIf="option.conflictReason" class="conflict-reason">{{ option.conflictReason }}</p>
+              <button class="assign-button" [disabled]="!option.isAvailable" (click)="assignCollector(option.collector.id)">Assign {{ option.collector.id }}</button>
+            </article>
+          </div>
+        </section>
       </div>
     </div>
   `,
@@ -639,6 +662,12 @@ import { User } from '../../../core/models/user.model';
     }
 
     .status-pending { background: #fef3c7; color: #92400e; }
+    .status-assigned { background: #dbeafe; color: #1e40af; }
+    .status-time-proposed { background: #e0f2fe; color: #075985; }
+    .status-reschedule-required { background: #fef3c7; color: #92400e; }
+    .status-scheduled { background: #dcfce7; color: #166534; }
+    .status-on-the-way { background: #ccfbf1; color: #115e59; }
+    .status-collected { background: #d1fae5; color: #065f46; }
     .status-received { background: #e0f2fe; color: #0369a1; }
     .status-scheduling { background: #e0f2fe; color: #0369a1; }
     .status-accepted { background: #dcfce7; color: #166534; }
@@ -973,6 +1002,29 @@ import { User } from '../../../core/models/user.model';
       box-shadow: 0 0 0 2px #0f172a;
     }
 
+    .assignment-modal { width: min(100%, 760px); max-height: 90vh; overflow: auto; padding: 22px; border-radius: 10px; background: #fff; box-shadow: 0 18px 50px rgba(0,0,0,.22); }
+    .assignment-header { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+    .assignment-header h2 { margin: 5px 0; color: #17211b; }
+    .assignment-header p { margin: 0; color: #64748b; font-size: 13px; }
+    .collector-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+    .collector-option { padding: 14px; border: 1px solid #dce8df; border-radius: 7px; background: #fff; }
+    .collector-option.recommended { border-color: #22c55e; box-shadow: inset 0 0 0 1px #22c55e; }
+    .collector-option.unavailable { background: #f8faf9; }
+    .collector-option-main, .collector-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .collector-heading strong { color: #166534; font-family: ui-monospace, monospace; }
+    .recommended-label { color: #166534; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+    .collector-name { display: block; margin-top: 4px; color: #475569; font-size: 13px; }
+    .availability { padding: 4px 7px; border-radius: 999px; background: #fee4e2; color: #912018; font-size: 10px; font-weight: 800; }
+    .availability.available { background: #dcfce7; color: #166534; }
+    .collector-details { display: grid; gap: 7px; margin: 14px 0; }
+    .collector-details div { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; }
+    .collector-details dt { color: #64748b; }
+    .collector-details dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+    .conflict-reason, .assignment-message { color: #9a3412; font-size: 12px; line-height: 1.4; }
+    .assign-button { width: 100%; min-height: 38px; border: 0; border-radius: 5px; background: #15803d; color: #fff; font-weight: 700; cursor: pointer; }
+    .assign-button:disabled { background: #cbd5e1; color: #64748b; cursor: not-allowed; }
+    .no-collectors { padding: 22px; border: 1px dashed #bbf7d0; border-radius: 6px; color: #64748b; text-align: center; }
+
     .modal-footer {
       padding: 16px 22px;
       border-top: 1px solid #e2e8f0;
@@ -1040,12 +1092,17 @@ export class RequestsComponent implements OnInit, OnDestroy {
   statusFilter = 'all';
   selectedRequest: WasteRequest | null = null;
   usersMap: Map<string, User> = new Map();
+  assignmentRequest: WasteRequest | null = null;
+  collectorRecommendations: CollectorRecommendation[] = [];
+  recommendedCollectorId: string | null = null;
+  assignmentMessage = '';
   private subscriptions = new Subscription();
 
   constructor(
     private requestService: RequestService,
     private authService: AuthService,
-    private userService: UserService
+    private userService: UserService,
+    private locationService: LocationService = new LocationService()
   ) {}
 
   ngOnInit(): void {
@@ -1107,12 +1164,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
 
       // 2. Status filter
       const reqStatus = (req.status || '').toLowerCase();
-      const matchesStatus =
-        this.statusFilter === 'all' ||
-        (this.statusFilter === 'pending' && (reqStatus === 'pending' || reqStatus === 'received' || reqStatus === 'scheduling')) ||
-        (this.statusFilter === 'accepted' && reqStatus === 'accepted') ||
-        (this.statusFilter === 'completed' && reqStatus === 'completed') ||
-        (this.statusFilter === 'rejected' && reqStatus === 'rejected');
+      const matchesStatus = this.statusFilter === 'all' || reqStatus === this.statusFilter;
 
       return matchesSearch && matchesStatus;
     });
@@ -1137,32 +1189,56 @@ export class RequestsComponent implements OnInit, OnDestroy {
     this.selectedRequest = null;
   }
 
-  updateStatus(request: WasteRequest, newStatus: string): void {
-    const success = this.requestService.changeStatus(request.id, newStatus);
-    if (success) {
-      this.loadRequests();
-      if (this.selectedRequest && this.selectedRequest.id === request.id) {
-        this.selectedRequest = this.requestService.getRequestById(request.id) || null;
-      }
+  openAssignment(request: WasteRequest): void {
+    this.assignmentRequest = request;
+    this.assignmentMessage = '';
+    this.collectorRecommendations = this.requestService.getCollectorRecommendations(request.id);
+    this.recommendedCollectorId = this.collectorRecommendations.find(option => option.isAvailable)?.collector.id || null;
+  }
+
+  closeAssignment(): void {
+    this.assignmentRequest = null;
+    this.collectorRecommendations = [];
+    this.recommendedCollectorId = null;
+    this.assignmentMessage = '';
+  }
+
+  assignCollector(collectorId: string): void {
+    if (!this.assignmentRequest) return;
+    if (!this.requestService.assignCollector(this.assignmentRequest.id, collectorId)) {
+      this.assignmentMessage = 'That Collector is no longer available for this request. Refresh the list and choose another.';
+      this.collectorRecommendations = this.requestService.getCollectorRecommendations(this.assignmentRequest.id);
+      this.recommendedCollectorId = this.collectorRecommendations.find(option => option.isAvailable)?.collector.id || null;
+      return;
+    }
+    this.closeAssignment();
+    this.loadRequests();
+  }
+
+  approveTime(request: WasteRequest): void {
+    if (this.requestService.approveProposedTime(request.id)) this.refreshSelectedRequest(request.id);
+  }
+
+  requestDifferentTime(request: WasteRequest): void {
+    if (this.requestService.requestDifferentTime(request.id)) this.refreshSelectedRequest(request.id);
+  }
+
+  private refreshSelectedRequest(requestId: string): void {
+    this.loadRequests();
+    if (this.selectedRequest?.id === requestId) {
+      this.selectedRequest = this.requestService.getRequestById(requestId) || null;
     }
   }
 
-  onQuickStatusChange(request: WasteRequest, newStatus: string): void {
-    if (newStatus && newStatus !== (request.status || '').toLowerCase()) {
-      this.updateStatus(request, newStatus);
-    }
+  formatDistance(distanceMeters: number | null): string {
+    return distanceMeters === null ? 'Distance unavailable' : this.locationService.formatDistance(distanceMeters);
+  }
+
+  hasRequestCoordinates(request: WasteRequest): boolean {
+    return this.locationService.isValidCoordinate(request.location?.latitude, request.location?.longitude);
   }
 
   getStatusLabel(status: string): string {
-    const s = (status || '').toLowerCase();
-    switch (s) {
-      case 'pending': return 'Pending';
-      case 'received':
-      case 'scheduling': return 'Pending';
-      case 'accepted': return 'Accepted';
-      case 'completed': return 'Completed';
-      case 'rejected': return 'Rejected';
-      default: return status || 'Pending';
-    }
+    return (status || 'pending').split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   }
 }

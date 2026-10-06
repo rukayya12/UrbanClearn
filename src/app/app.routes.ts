@@ -76,8 +76,7 @@ export const routes: Routes = [
         children: [
           { path: 'dashboard', loadComponent: () => import('./features/collector/dashboard/dashboard.component').then(m => m.DashboardComponent) },
           { path: 'requests', loadComponent: () => import('./features/collector/requests/requests.component').then(m => m.RequestsComponent) },
-          { path: 'map', loadComponent: () => import('./features/map/map.component').then(m => m.MapComponent) },
-          { path: 'schedule', loadComponent: () => import('./features/collector/schedule/schedule.component').then(m => m.ScheduleComponent) },
+          { path: 'schedule', redirectTo: 'requests', pathMatch: 'full' },
           { path: 'history', loadComponent: () => import('./features/collector/history/history.component').then(m => m.HistoryComponent) },
           { path: 'profile', loadComponent: () => import('./features/profile/profile.component').then(m => m.ProfileComponent) },
           { path: 'notifications', loadComponent: () => import('./features/notifications/notifications.component').then(m => m.NotificationsComponent) },
@@ -91,7 +90,6 @@ export const routes: Routes = [
         children: [
           { path: 'dashboard', loadComponent: () => import('./features/recycling-centre/dashboard/dashboard.component').then(m => m.DashboardComponent) },
           { path: 'requests', loadComponent: () => import('./features/recycling-centre/requests/requests.component').then(m => m.RequestsComponent) },
-          { path: 'map', loadComponent: () => import('./features/map/map.component').then(m => m.MapComponent) },
           { path: 'recycling', loadComponent: () => import('./features/recycling-centre/recycling/recycling.component').then(m => m.RecyclingComponent) },
           { path: 'profile', loadComponent: () => import('./features/profile/profile.component').then(m => m.ProfileComponent) },
           { path: 'notifications', loadComponent: () => import('./features/notifications/notifications.component').then(m => m.NotificationsComponent) },

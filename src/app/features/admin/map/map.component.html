@@ -103,6 +103,12 @@
           >
             Pending
           </button>
+          <button type="button" class="pill-btn status-assigned" [class.active]="statusFilter === 'ASSIGNED'" (click)="setStatusFilter('ASSIGNED')">Assigned</button>
+          <button type="button" class="pill-btn status-time-proposed" [class.active]="statusFilter === 'TIME_PROPOSED'" (click)="setStatusFilter('TIME_PROPOSED')">Time Proposed</button>
+          <button type="button" class="pill-btn status-reschedule-required" [class.active]="statusFilter === 'RESCHEDULE_REQUIRED'" (click)="setStatusFilter('RESCHEDULE_REQUIRED')">Reschedule Required</button>
+          <button type="button" class="pill-btn status-scheduled" [class.active]="statusFilter === 'SCHEDULED'" (click)="setStatusFilter('SCHEDULED')">Scheduled</button>
+          <button type="button" class="pill-btn status-on-the-way" [class.active]="statusFilter === 'ON_THE_WAY'" (click)="setStatusFilter('ON_THE_WAY')">On the Way</button>
+          <button type="button" class="pill-btn status-collected" [class.active]="statusFilter === 'COLLECTED'" (click)="setStatusFilter('COLLECTED')">Collected</button>
           <button 
             type="button" 
             class="pill-btn status-accepted" 

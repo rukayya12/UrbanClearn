@@ -33,7 +33,7 @@ describe('UrbanClean — Admin Notifications Feature (Exact System Events & Data
 
     authService = new AuthService();
     locationService = new LocationService();
-    userService = new UserService(authService);
+    userService = new UserService();
     notificationService = new NotificationService();
     requestService = new RequestService(locationService, authService, userService, notificationService);
     adminGuard = new AdminGuard(authService, mockRouter);

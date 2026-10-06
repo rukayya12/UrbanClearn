@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
-import { User, Collector, RecyclingCentre, UserRole, generateNextUserId } from '../models/user.model';
+import { User, Collector, RecyclingCentre, UserRole, generateNextCollectorId, generateNextUserId } from '../models/user.model';
 
 @Injectable({
   providedIn: 'root'
@@ -45,6 +45,54 @@ export class UserService {
 
   getActiveCollectors(): Collector[] {
     return this.getCollectors().filter(c => c.availability === 'available');
+  }
+
+  addCollector(data: {
+    fullName: string;
+    email: string;
+    phone: string;
+    password: string;
+    address: string;
+    latitude: number;
+    longitude: number;
+    availability: Collector['availability'];
+  }): Collector | null {
+    const users = this.getUsersFromStorage();
+    const email = data.email.trim().toLowerCase();
+    if (!email || users.some(user => user.email.toLowerCase() === email)) return null;
+
+    const now = new Date();
+    const hasCoordinates = Number.isFinite(data.latitude) && Number.isFinite(data.longitude) &&
+      (data.latitude !== 0 || data.longitude !== 0) &&
+      data.latitude >= -90 && data.latitude <= 90 && data.longitude >= -180 && data.longitude <= 180;
+    const collector: Collector = {
+      id: generateNextCollectorId(users),
+      fullName: data.fullName.trim(),
+      email,
+      phone: data.phone.trim(),
+      password: data.password,
+      role: 'COLLECTOR',
+      location: {
+        latitude: hasCoordinates ? data.latitude : 0,
+        longitude: hasCoordinates ? data.longitude : 0,
+        address: data.address.trim(),
+        region: 'Zanzibar',
+        district: '',
+        city: ''
+      },
+      createdAt: now,
+      updatedAt: now,
+      isActive: true,
+      availability: data.availability,
+      totalCollections: 0,
+      completedCollections: 0,
+      rating: 0
+    };
+
+    users.push(collector);
+    localStorage.setItem('urbanclean_users', JSON.stringify(users));
+    this.usersSubject.next(users);
+    return collector;
   }
 
   updateUser(user: User): boolean {
@@ -137,9 +185,11 @@ export class UserService {
       const users = parsed.map((user: User) => {
         let userId = user.id;
         // If user does not have a suitable sequential ID (USER01, USER02, ... or ADMIN01)
-        if (!userId || typeof userId !== 'string' || (!/^USER\d+$/i.test(userId) && userId !== 'ADMIN01' && !userId.startsWith('admin-'))) {
+        if (!userId || typeof userId !== 'string' || (!/^USER\d+$/i.test(userId) && !/^COLLECTOR\d+$/i.test(userId) && userId !== 'ADMIN01' && !userId.startsWith('admin-'))) {
           if (user.role === 'ADMIN' || (user.email && user.email.toLowerCase() === 'admin@urbanclean.com')) {
             userId = 'ADMIN01';
+          } else if (user.role === 'COLLECTOR') {
+            userId = generateNextCollectorId(parsed);
           } else {
             userId = generateNextUserId(parsed);
           }

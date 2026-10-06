@@ -671,8 +671,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     // Requests data from storage
     const requests = this.requestService.getAllRequests();
     this.totalWasteRequests = requests.length;
-    this.pendingRequests = requests.filter(r => ['pending', 'received', 'scheduling'].includes(r.status?.toLowerCase())).length;
-    this.acceptedRequests = requests.filter(r => r.status?.toLowerCase() === 'accepted').length;
+    this.pendingRequests = requests.filter(r => ['pending', 'received'].includes(r.status?.toLowerCase())).length;
+    this.acceptedRequests = requests.filter(r => ['assigned', 'time-proposed', 'reschedule-required', 'scheduled', 'on-the-way', 'collected', 'accepted', 'scheduling', 'processed'].includes(r.status?.toLowerCase())).length;
     this.completedRequests = requests.filter(r => r.status?.toLowerCase() === 'completed').length;
     this.rejectedRequests = requests.filter(r => r.status?.toLowerCase() === 'rejected').length;
     this.recentRequests = requests.slice(0, 5);
@@ -681,6 +681,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
   getStatusColor(status: string): string {
     const colors: { [key: string]: string } = {
       'pending': '#f59e0b',
+      'assigned': '#2563eb',
+      'time-proposed': '#0284c7',
+      'reschedule-required': '#b45309',
+      'scheduled': '#15803d',
+      'on-the-way': '#0f766e',
+      'collected': '#0f766e',
       'received': '#3b82f6',
       'processing': '#8b5cf6',
       'completed': '#10b981',
@@ -694,6 +700,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
   getStatusLabel(status: string): string {
     const labels: { [key: string]: string } = {
       'pending': 'Pending',
+      'assigned': 'Assigned',
+      'time-proposed': 'Time Proposed',
+      'reschedule-required': 'Reschedule Required',
+      'scheduled': 'Scheduled',
+      'on-the-way': 'On the Way',
+      'collected': 'Collected',
       'received': 'Received',
       'processing': 'Processing',
       'completed': 'Completed',

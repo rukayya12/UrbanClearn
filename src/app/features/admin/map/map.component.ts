@@ -11,7 +11,7 @@ import { WasteRequest, RequestStatus } from '../../../core/models/request.model'
 import { User } from '../../../core/models/user.model';
 
 type EntityFilterType = 'ALL' | 'REQUESTS' | 'USERS';
-type StatusFilterType = 'ALL' | 'PENDING' | 'ACCEPTED' | 'COMPLETED' | 'REJECTED';
+type StatusFilterType = 'ALL' | 'PENDING' | 'ASSIGNED' | 'TIME_PROPOSED' | 'RESCHEDULE_REQUIRED' | 'SCHEDULED' | 'ON_THE_WAY' | 'COLLECTED' | 'ACCEPTED' | 'COMPLETED' | 'REJECTED';
 
 @Component({
   selector: 'app-admin-map',
@@ -183,7 +183,7 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
 
     // Status Filter for Requests
     if (this.statusFilter !== 'ALL') {
-      const targetStatus = this.statusFilter.toLowerCase();
+      const targetStatus = this.statusFilter.toLowerCase().replace(/_/g, '-');
       reqs = reqs.filter(r => {
         const s = (r.status || '').toLowerCase();
         if (targetStatus === 'pending') {
@@ -329,6 +329,12 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private getNormalizedStatus(status?: string): string {
     const s = (status || '').toLowerCase();
+    if (s === 'time-proposed') return 'Time Proposed';
+    if (s === 'reschedule-required') return 'Reschedule Required';
+    if (s === 'on-the-way') return 'On the Way';
+    if (s === 'assigned' || s === 'scheduled' || s === 'collected') {
+      return s.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    }
     switch (s) {
       case 'accepted': return 'Accepted';
       case 'completed': return 'Completed';
@@ -359,9 +365,12 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
     let bg = '#D97706'; // pending - amber
     let emoji = '📦';
 
-    if (s === 'accepted') {
+    if (['assigned', 'scheduled', 'accepted'].includes(s)) {
       bg = '#15803D'; // accepted - green
       emoji = '✅';
+    } else if (['time-proposed', 'reschedule-required', 'on-the-way', 'collected'].includes(s)) {
+      bg = '#0F766E';
+      emoji = '🚚';
     } else if (s === 'completed') {
       bg = '#0284C7'; // completed - blue
       emoji = '♻️';
@@ -431,7 +440,11 @@ export class MapComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private createRequestPopupHtml(req: WasteRequest): string {
     const status = this.getNormalizedStatus(req.status);
-    const dateStr = req.requestedTime ? new Date(req.requestedTime).toLocaleDateString('en-GB') : '28/09/2026';
+    const dateStr = req.confirmedCollectionDate
+      ? `${req.confirmedCollectionDate} ${req.confirmedCollectionTime || ''}`
+      : req.preferredDate
+        ? `${req.preferredDate} ${req.preferredTime || ''} (preferred)`
+        : 'Not scheduled';
     const wasteTypes = (req.wasteTypes || []).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(', ') || 'General';
     const hasLoc = this.hasValidLocation(req);
     const locationText = hasLoc ? `📍 ${req.location.address}` : '<span class="text-danger">⚠️ No location found</span>';

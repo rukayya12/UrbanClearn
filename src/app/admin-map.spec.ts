@@ -32,7 +32,7 @@ describe('UrbanClean — Admin Map Feature (Interactive Collection & User Locati
 
     authService = new AuthService();
     locationService = new LocationService();
-    userService = new UserService(authService);
+    userService = new UserService();
     notificationService = new NotificationService();
     requestService = new RequestService(locationService, authService, userService, notificationService);
     adminGuard = new AdminGuard(authService, mockRouter);

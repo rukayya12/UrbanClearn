@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
-import { User, UserRole, Location, generateNextUserId } from '../models/user.model';
+import { User, UserRole, Location, generateNextCollectorId, generateNextUserId } from '../models/user.model';
 
 @Injectable({
   providedIn: 'root'
@@ -313,9 +313,11 @@ export class AuthService {
       const users = parsed.map((user: User) => {
         let userId = user.id;
         // If user does not have a suitable sequential ID (USER01, USER02, ... or ADMIN01)
-        if (!userId || typeof userId !== 'string' || (!/^USER\d+$/i.test(userId) && userId !== 'ADMIN01' && !userId.startsWith('admin-'))) {
+        if (!userId || typeof userId !== 'string' || (!/^USER\d+$/i.test(userId) && !/^COLLECTOR\d+$/i.test(userId) && userId !== 'ADMIN01' && !userId.startsWith('admin-'))) {
           if (user.role === 'ADMIN' || (user.email && user.email.toLowerCase() === 'admin@urbanclean.com')) {
             userId = 'ADMIN01';
+          } else if (user.role === 'COLLECTOR') {
+            userId = generateNextCollectorId(parsed);
           } else {
             userId = generateNextUserId(parsed);
           }

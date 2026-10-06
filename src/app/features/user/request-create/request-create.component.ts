@@ -17,6 +17,7 @@ import { User } from '../../../core/models/user.model';
   styleUrls: ['./request-create.component.scss']
 })
 export class RequestCreateComponent implements OnInit {
+  today = new Date().toISOString().slice(0, 10);
   requestForm!: FormGroup;
   loading = false;
   errorMessage = '';
@@ -42,21 +43,35 @@ export class RequestCreateComponent implements OnInit {
 
   initializeForm(): void {
     this.requestForm = this.formBuilder.group({
-      latitude: [this.currentUser?.location.latitude || '', Validators.required],
-      longitude: [this.currentUser?.location.longitude || '', Validators.required],
+      latitude: [''],
+      longitude: [''],
       address: [this.currentUser?.location.address || '', Validators.required],
-      requestedTime: [new Date().toISOString().slice(0, 16), Validators.required],
+      preferredDate: [''],
+      preferredTime: [''],
       description: ['']
     });
   }
 
   getCurrentLocation(): void {
     if (this.currentUser) {
+      const knownPlace = this.locationService.searchZanzibarPlace(this.currentUser.location.address);
+      const hasStoredCoordinates = this.locationService.isValidCoordinate(
+        this.currentUser.location.latitude,
+        this.currentUser.location.longitude
+      ) && !(this.currentUser.location.latitude === -6.1639 && this.currentUser.location.longitude === 35.7461);
       this.requestForm.patchValue({
-        latitude: this.currentUser.location.latitude,
-        longitude: this.currentUser.location.longitude,
+        latitude: knownPlace?.lat ?? (hasStoredCoordinates ? this.currentUser.location.latitude : ''),
+        longitude: knownPlace?.lng ?? (hasStoredCoordinates ? this.currentUser.location.longitude : ''),
         address: this.currentUser.location.address
       });
+    }
+  }
+
+  updateCoordinatesFromAddress(): void {
+    const address = this.requestForm.get('address')?.value;
+    const knownPlace = this.locationService.searchZanzibarPlace(address);
+    if (knownPlace) {
+      this.requestForm.patchValue({ latitude: knownPlace.lat, longitude: knownPlace.lng });
     }
   }
 
@@ -80,15 +95,20 @@ export class RequestCreateComponent implements OnInit {
     this.successMessage = '';
 
     const formValue = this.requestForm.value;
-    const requestedTime = new Date(formValue.requestedTime);
+    const requestedTime = formValue.preferredDate && formValue.preferredTime
+      ? new Date(`${formValue.preferredDate}T${formValue.preferredTime}`)
+      : new Date();
+    const hasCoordinatePair = formValue.latitude !== '' && formValue.longitude !== '';
 
     this.requestService.createRequest(
       this.selectedWasteTypes,
-      parseFloat(formValue.latitude),
-      parseFloat(formValue.longitude),
+      hasCoordinatePair ? Number(formValue.latitude) : 0,
+      hasCoordinatePair ? Number(formValue.longitude) : 0,
       formValue.address,
       requestedTime,
-      formValue.description
+      formValue.description,
+      formValue.preferredDate || undefined,
+      formValue.preferredTime || undefined
     ).subscribe({
       next: (response) => {
         this.loading = false;

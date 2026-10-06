@@ -5,6 +5,15 @@ import { LocationService } from './location.service';
 import { AuthService } from './auth.service';
 import { UserService } from './user.service';
 import { NotificationService } from './notification.service';
+import { Collector } from '../models/user.model';
+
+export interface CollectorRecommendation {
+  collector: Collector;
+  distanceMeters: number | null;
+  currentAssignments: number;
+  isAvailable: boolean;
+  conflictReason?: string;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -126,7 +135,9 @@ export class RequestService {
     longitude: number,
     address: string,
     requestedTime: Date,
-    description?: string
+    description?: string,
+    preferredDate?: string,
+    preferredTime?: string
   ): Observable<{ success: boolean; message: string; requestId?: string }> {
     return new Observable(observer => {
       setTimeout(() => {
@@ -138,11 +149,7 @@ export class RequestService {
           return;
         }
 
-        if (!this.locationService.isValidCoordinate(latitude, longitude)) {
-          observer.next({ success: false, message: 'Invalid coordinates' });
-          observer.complete();
-          return;
-        }
+        const hasValidCoordinates = this.locationService.isValidCoordinate(latitude, longitude);
 
         const nextId = this.generateNextRequestId(currentUser.id);
         const now = new Date();
@@ -155,12 +162,14 @@ export class RequestService {
           userPhone: currentUser.phone,
           wasteTypes,
           location: {
-            latitude,
-            longitude,
+            latitude: hasValidCoordinates ? latitude : 0,
+            longitude: hasValidCoordinates ? longitude : 0,
             address
           },
           description,
-          requestedTime,
+          requestedTime: requestedTime || new Date(),
+          preferredDate: preferredDate || undefined,
+          preferredTime: preferredTime || undefined,
           status: 'pending',
           statusHistory: [
             { status: 'pending', timestamp: now, notes: 'Request created by user' }
@@ -225,8 +234,174 @@ export class RequestService {
 
   getCollectorRequests(collectorId: string): WasteRequest[] {
     return this.getRequestsFromStorage().filter(
-      r => r.collectorId === collectorId && ['accepted', 'scheduling', 'completed'].includes(r.status)
+      r => r.collectorId === collectorId && r.status !== 'rejected'
     );
+  }
+
+  getCollectorRecommendations(requestId: string): CollectorRecommendation[] {
+    const request = this.getRequestById(requestId);
+    if (!request) return [];
+
+    const hasRequestCoordinates = this.locationService.isValidCoordinate(
+      request.location?.latitude,
+      request.location?.longitude
+    );
+    const assignments = this.getRequestsFromStorage();
+
+    return this.userService.getCollectors()
+      .filter(collector => collector.isActive)
+      .map(collector => {
+        const hasCollectorCoordinates = this.locationService.isValidCoordinate(
+          collector.location?.latitude,
+          collector.location?.longitude
+        );
+        const distanceMeters = hasRequestCoordinates && hasCollectorCoordinates
+          ? this.locationService.calculateDistance(
+              request.location.latitude,
+              request.location.longitude,
+              collector.location.latitude,
+              collector.location.longitude
+            )
+          : null;
+        const currentAssignments = assignments.filter(item =>
+          item.collectorId === collector.id &&
+          item.id !== requestId &&
+          !['completed', 'rejected'].includes(item.status)
+        ).length;
+        const conflicts = this.hasScheduleConflict(
+          collector.id,
+          request.preferredDate,
+          request.preferredTime,
+          requestId
+        );
+        const isAvailable = collector.availability === 'available' && conflicts.length === 0;
+
+        return {
+          collector,
+          distanceMeters,
+          currentAssignments,
+          isAvailable,
+          conflictReason: conflicts.length
+            ? `Already assigned to ${conflicts[0].id} at that time.`
+            : collector.availability !== 'available'
+              ? `Collector is ${collector.availability}.`
+              : undefined
+        };
+      })
+      .sort((first, second) => {
+        if (first.isAvailable !== second.isAvailable) return first.isAvailable ? -1 : 1;
+        if (first.distanceMeters === null) return second.distanceMeters === null ? 0 : 1;
+        if (second.distanceMeters === null) return -1;
+        return first.distanceMeters - second.distanceMeters;
+      });
+  }
+
+  assignCollector(requestId: string, collectorId: string): boolean {
+    if (!this.authService.hasAnyRole(['ADMIN', 'SUPER_ADMIN'])) return false;
+    const requests = this.getRequestsFromStorage();
+    const request = requests.find(item => item.id === requestId);
+    const recommendation = this.getCollectorRecommendations(requestId)
+      .find(item => item.collector.id === collectorId);
+    if (!request || request.status !== 'pending' || !recommendation?.isAvailable) return false;
+
+    request.collectorId = recommendation.collector.id;
+    request.collectorName = recommendation.collector.fullName;
+    request.assignedAt = new Date();
+    request.status = 'assigned';
+    this.recordStatus(request, 'assigned', 'Collector assigned by Admin');
+    this.saveRequests(requests);
+
+    this.notifyRequest(request, 'Collector Assigned', `Collector ${request.collectorName} has been assigned to ${request.id}.`, 'NORMAL_USER');
+    this.notifyRequest(request, 'New Collection Assigned', `${request.id} has been assigned to you.`, 'COLLECTOR', collectorId);
+    return true;
+  }
+
+  proposeCollectionTime(requestId: string, collectorId: string, date: string, time: string): boolean {
+    if (!this.authService.hasRole('COLLECTOR')) return false;
+    const collector = this.userService.getCollectors().find(item => item.id === collectorId);
+    const requests = this.getRequestsFromStorage();
+    const request = requests.find(item => item.id === requestId);
+    if (
+      !request || request.collectorId !== collectorId ||
+      !collector || collector.availability !== 'available' ||
+      !['assigned', 'reschedule-required'].includes(request.status) ||
+      !this.isValidSchedule(date, time) ||
+      this.hasScheduleConflict(collectorId, date, time, requestId).length > 0
+    ) return false;
+
+    request.proposedCollectionDate = date;
+    request.proposedCollectionTime = time;
+    request.status = 'time-proposed';
+    this.recordStatus(request, 'time-proposed', 'Collector proposed a collection time');
+    this.saveRequests(requests);
+
+    this.notifyRequest(request, 'Collection Time Proposed', `${request.collectorName} proposed ${date} at ${time} for ${request.id}.`, 'ADMIN');
+    this.notifyRequest(request, 'Collection Time Proposed', `A collection time has been proposed for ${request.id}.`, 'NORMAL_USER');
+    return true;
+  }
+
+  approveProposedTime(requestId: string): boolean {
+    if (!this.authService.hasAnyRole(['ADMIN', 'SUPER_ADMIN'])) return false;
+    const requests = this.getRequestsFromStorage();
+    const request = requests.find(item => item.id === requestId);
+    if (!request || request.status !== 'time-proposed' || !request.proposedCollectionDate || !request.proposedCollectionTime) return false;
+
+    request.confirmedCollectionDate = request.proposedCollectionDate;
+    request.confirmedCollectionTime = request.proposedCollectionTime;
+    request.status = 'scheduled';
+    this.recordStatus(request, 'scheduled', 'Collection time approved by Admin');
+    this.saveRequests(requests);
+
+    this.notifyRequest(request, 'Collection Time Approved', `${request.id} is scheduled for ${request.confirmedCollectionDate} at ${request.confirmedCollectionTime}.`, 'NORMAL_USER');
+    this.notifyRequest(request, 'Collection Time Approved', `Admin approved the schedule for ${request.id}.`, 'COLLECTOR', request.collectorId);
+    return true;
+  }
+
+  requestDifferentTime(requestId: string): boolean {
+    if (!this.authService.hasAnyRole(['ADMIN', 'SUPER_ADMIN'])) return false;
+    const requests = this.getRequestsFromStorage();
+    const request = requests.find(item => item.id === requestId);
+    if (!request || request.status !== 'time-proposed') return false;
+
+    request.proposedCollectionDate = undefined;
+    request.proposedCollectionTime = undefined;
+    request.status = 'reschedule-required';
+    this.recordStatus(request, 'reschedule-required', 'Admin requested a different collection time');
+    this.saveRequests(requests);
+
+    this.notifyRequest(request, 'Different Time Requested', `Admin requested a different time for ${request.id}.`, 'COLLECTOR', request.collectorId);
+    this.notifyRequest(request, 'Reschedule Required', `The proposed time for ${request.id} needs to be changed.`, 'NORMAL_USER');
+    return true;
+  }
+
+  updateCollectionStatus(requestId: string, newStatus: 'on-the-way' | 'collected' | 'completed'): boolean {
+    const collectorId = this.authService.getCurrentUser()?.id;
+    if (!collectorId || !this.authService.hasRole('COLLECTOR')) return false;
+    const requests = this.getRequestsFromStorage();
+    const request = requests.find(item => item.id === requestId);
+    const allowedNext: Record<string, string> = {
+      scheduled: 'on-the-way',
+      'on-the-way': 'collected',
+      collected: 'completed'
+    };
+    if (!request || request.collectorId !== collectorId || allowedNext[request.status] !== newStatus) return false;
+
+    request.status = newStatus;
+    this.recordStatus(request, newStatus, `Collector updated status to ${newStatus}`);
+    if (newStatus === 'completed') {
+      request.completionTime = new Date();
+      request.completedAt = request.completionTime;
+      request.greenPoints = this.calculateGreenPoints(request);
+    }
+    this.saveRequests(requests);
+    this.notifyRequest(request, 'Collection Status Updated', `${request.id} is now ${newStatus.replace('-', ' ')}.`, 'NORMAL_USER');
+    this.notifyRequest(request, 'Collection Status Updated', `${request.id} is now ${newStatus.replace('-', ' ')}.`, 'ADMIN');
+    return true;
+  }
+
+  isCollectorAvailableForSchedule(collectorId: string, date: string, time: string, requestId: string): boolean {
+    const collector = this.userService.getCollectors().find(item => item.id === collectorId);
+    return collector?.availability === 'available' && this.hasScheduleConflict(collectorId, date, time, requestId).length === 0;
   }
 
   getRequestsByStatus(status: RequestStatus): WasteRequest[] {
@@ -240,6 +415,11 @@ export class RequestService {
   ): Observable<{ success: boolean; message: string }> {
     return new Observable(observer => {
       setTimeout(() => {
+        if (!this.authService.hasAnyRole(['ADMIN', 'SUPER_ADMIN'])) {
+          observer.next({ success: false, message: 'Only Admin can update request status' });
+          observer.complete();
+          return;
+        }
         const requests = this.getRequestsFromStorage();
         const request = requests.find(r => r.id === requestId);
 
@@ -324,6 +504,7 @@ export class RequestService {
    * Synchronously changes request status and persists to urbanclean_requests
    */
   changeStatus(requestId: string, newStatus: RequestStatus | string, notes?: string): boolean {
+    if (!this.authService.hasAnyRole(['ADMIN', 'SUPER_ADMIN'])) return false;
     const requests = this.getRequestsFromStorage();
     const request = requests.find(r => r.id === requestId);
 
@@ -405,11 +586,82 @@ export class RequestService {
     const requests = this.getRequestsFromStorage();
     return {
       total: requests.length,
-      pending: requests.filter(r => ['pending', 'received', 'scheduling'].includes(r.status?.toLowerCase())).length,
-      accepted: requests.filter(r => r.status?.toLowerCase() === 'accepted').length,
+      pending: requests.filter(r => ['pending', 'received'].includes(r.status?.toLowerCase())).length,
+      accepted: requests.filter(r => ['assigned', 'time-proposed', 'reschedule-required', 'scheduled', 'on-the-way', 'collected', 'accepted', 'scheduling', 'processed'].includes(r.status?.toLowerCase())).length,
       completed: requests.filter(r => r.status?.toLowerCase() === 'completed').length,
       rejected: requests.filter(r => r.status?.toLowerCase() === 'rejected').length
     };
+  }
+
+  private hasScheduleConflict(
+    collectorId: string,
+    date?: string,
+    time?: string,
+    excludeRequestId?: string
+  ): WasteRequest[] {
+    if (!date || !time) return [];
+    const proposedMinutes = this.timeToMinutes(time);
+    if (proposedMinutes === null) return [];
+
+    return this.getRequestsFromStorage().filter(request => {
+      if (
+        request.collectorId !== collectorId ||
+        request.id === excludeRequestId ||
+        !['assigned', 'time-proposed', 'scheduled', 'on-the-way', 'collected'].includes(request.status)
+      ) return false;
+
+      const assignedDate = request.confirmedCollectionDate || request.proposedCollectionDate || request.preferredDate;
+      const assignedTime = request.confirmedCollectionTime || request.proposedCollectionTime || request.preferredTime;
+      const assignedMinutes = this.timeToMinutes(assignedTime);
+      return assignedDate === date && assignedMinutes !== null && Math.abs(assignedMinutes - proposedMinutes) < 60;
+    });
+  }
+
+  private isValidSchedule(date: string, time: string): boolean {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return false;
+    const scheduledAt = new Date(`${date}T${time}:00`);
+    return !Number.isNaN(scheduledAt.getTime()) && scheduledAt.getTime() >= Date.now();
+  }
+
+  private timeToMinutes(time?: string): number | null {
+    if (!time || !/^\d{2}:\d{2}$/.test(time)) return null;
+    const [hours, minutes] = time.split(':').map(Number);
+    if (hours > 23 || minutes > 59) return null;
+    return hours * 60 + minutes;
+  }
+
+  private recordStatus(request: WasteRequest, status: RequestStatus, notes: string): void {
+    if (!request.statusHistory) request.statusHistory = [];
+    request.statusHistory.push({ status, timestamp: new Date(), notes });
+    request.updatedAt = new Date();
+  }
+
+  private saveRequests(requests: WasteRequest[]): void {
+    localStorage.setItem('urbanclean_requests', JSON.stringify(requests));
+    this.requestsSubject.next([...requests]);
+  }
+
+  private notifyRequest(
+    request: WasteRequest,
+    title: string,
+    message: string,
+    role: 'ADMIN' | 'NORMAL_USER' | 'COLLECTOR',
+    collectorId?: string
+  ): void {
+    const recipientId = role === 'ADMIN' ? 'ADMIN' : role === 'COLLECTOR' ? collectorId : request.userId;
+    if (!recipientId) return;
+    const route = role === 'ADMIN' ? '/admin/requests' : role === 'COLLECTOR' ? '/collector/requests' : '/user/requests';
+    this.notificationService.createNotification(
+      recipientId,
+      'system',
+      title,
+      message,
+      route,
+      request.id,
+      recipientId,
+      role === 'COLLECTOR' ? request.collectorName : request.userName,
+      role
+    );
   }
 
   private calculateGreenPoints(request: WasteRequest): number {

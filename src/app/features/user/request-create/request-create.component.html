@@ -34,11 +34,11 @@
 
       <!-- Location -->
       <fieldset class="form-section">
-        <legend>Location <span class="required">*</span></legend>
+        <legend>Collection Location <span class="required">*</span></legend>
         
         <div class="form-row">
           <div class="form-group">
-            <label for="latitude">Latitude</label>
+            <label for="latitude">Latitude (optional)</label>
             <input
               id="latitude"
               type="number"
@@ -49,7 +49,7 @@
             />
           </div>
           <div class="form-group">
-            <label for="longitude">Longitude</label>
+            <label for="longitude">Longitude (optional)</label>
             <input
               id="longitude"
               type="number"
@@ -67,25 +67,28 @@
             id="address"
             type="text"
             formControlName="address"
+            (blur)="updateCoordinatesFromAddress()"
             placeholder="Enter your address"
             [class.error]="requestForm.get('address')?.invalid && requestForm.get('address')?.touched"
           />
         </div>
       </fieldset>
 
-      <!-- Request Time -->
+      <!-- User preference only; collector proposes final time -->
       <fieldset class="form-section">
-        <legend>Preferred Collection Time <span class="required">*</span></legend>
-        
-        <div class="form-group">
-          <label for="requestedTime">Date & Time</label>
-          <input
-            id="requestedTime"
-            type="datetime-local"
-            formControlName="requestedTime"
-            [class.error]="requestForm.get('requestedTime')?.invalid && requestForm.get('requestedTime')?.touched"
-          />
+        <legend>Preferred Collection Time (Optional)</legend>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="preferredDate">Preferred Date</label>
+            <input id="preferredDate" type="date" formControlName="preferredDate" [min]="today" />
+          </div>
+          <div class="form-group">
+            <label for="preferredTime">Preferred Time</label>
+            <input id="preferredTime" type="time" formControlName="preferredTime" />
+          </div>
         </div>
+        <p class="preference-note">This is a preference only. Your Collector will propose the collection time.</p>
       </fieldset>
 
       <!-- Description -->

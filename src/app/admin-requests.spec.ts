@@ -1,5 +1,5 @@
 import '@angular/compiler';
-import { describe, beforeEach, it, expect } from 'vitest';
+import { describe, beforeEach, it, expect, vi } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from './core/services/auth.service';
 import { UserService } from './core/services/user.service';
@@ -21,9 +21,16 @@ describe('UrbanClean — Admin Requests Feature (Full 22-Step Verification Flow)
   let requestService: RequestService;
   let mockRouter: any;
   let navigatedUrl = '';
+  const storage = new Map<string, string>();
 
   beforeEach(() => {
-    localStorage.clear();
+    storage.clear();
+    vi.stubGlobal('localStorage', {
+      clear: () => storage.clear(),
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key)
+    });
     navigatedUrl = '';
     mockRouter = {
       navigate: (commands: any[]) => {
@@ -33,12 +40,22 @@ describe('UrbanClean — Admin Requests Feature (Full 22-Step Verification Flow)
     };
     authService = new AuthService();
     userService = new UserService();
+    userService.addCollector({
+      fullName: 'Test Collector',
+      email: 'collector@urbanclean.com',
+      phone: '+255 777 000 003',
+      password: 'Collector123!',
+      address: 'Stone Town',
+      latitude: -6.163,
+      longitude: 39.189,
+      availability: 'available'
+    });
     locationService = new LocationService();
     notificationService = new NotificationService();
     requestService = new RequestService(locationService, authService, userService, notificationService);
   });
 
-  it('Complete 22-Step Flow: Normal User creates REQ01, Admin views & accepts, Normal User sees Accepted', async () => {
+  it('Complete Flow: Normal User creates REQ01, Admin assigns, Collector proposes, Admin approves', async () => {
     // 1. Register a Normal User
     const regResult = await firstValueFrom(
       authService.register({
@@ -121,29 +138,44 @@ describe('UrbanClean — Admin Requests Feature (Full 22-Step Verification Flow)
     expect(adminRequestsComp.selectedRequest?.userName).toBe('Asha Ali');
     expect(adminRequestsComp.selectedRequest?.userEmail).toBe('asha@gmail.com');
 
-    // 14. Change REQ01 from Pending to Accepted
-    adminRequestsComp.updateStatus(adminRequestsComp.selectedRequest!, 'accepted');
+    // 14. Admin explicitly assigns the available Collector
+    adminRequestsComp.openAssignment(adminRequestsComp.selectedRequest!);
+    expect(adminRequestsComp.recommendedCollectorId).toBe('COLLECTOR01');
+    adminRequestsComp.assignCollector('COLLECTOR01');
 
-    // 15. Confirm the change is saved
+    // 15. Confirm assignment is saved without a confirmed collection time
     const rawRequests: WasteRequest[] = JSON.parse(localStorage.getItem('urbanclean_requests')!);
-    expect(rawRequests[0].status).toBe('accepted');
-    expect(adminRequestsComp.requests[0].status).toBe('accepted');
-    expect(adminRequestsComp.selectedRequest?.status).toBe('accepted');
+    expect(rawRequests[0].status).toBe('assigned');
+    expect(rawRequests[0].collectorId).toBe('COLLECTOR01');
+    expect(rawRequests[0].confirmedCollectionDate).toBeUndefined();
 
-    // 16. Logout from Admin
+    // 16. Collector proposes a date and time; the Collector cannot approve it
     authService.logout();
+    await firstValueFrom(authService.login('collector@urbanclean.com', 'Collector123!'));
+    expect(requestService.proposeCollectionTime('REQ01', 'COLLECTOR01', '2099-10-10', '11:00')).toBe(true);
+    expect(requestService.getRequestById('REQ01')?.status).toBe('time-proposed');
+    expect(requestService.approveProposedTime('REQ01')).toBe(false);
 
-    // 17. Login as the Normal User
+    // 17. Admin approves the proposed schedule
+    authService.logout();
+    await firstValueFrom(authService.login('admin@urbanclean.com', 'Admin123!'));
+    expect(requestService.approveProposedTime('REQ01')).toBe(true);
+    expect(requestService.getRequestById('REQ01')?.status).toBe('scheduled');
+
+    // 18. Login as the Normal User
+    authService.logout();
     await firstValueFrom(authService.login('asha@gmail.com', 'Password123!'));
 
     // 18. Open My Requests
     const reloadedUserRequestsComp = new UserRequestsComponent(requestService, authService, mockRouter);
     reloadedUserRequestsComp.ngOnInit();
 
-    // 19. Confirm REQ01 now shows Accepted
+    // 19. Confirm REQ01 shows the confirmed schedule
     expect(reloadedUserRequestsComp.userRequests.length).toBe(1);
     expect(reloadedUserRequestsComp.userRequests[0].id).toBe('REQ01');
-    expect(reloadedUserRequestsComp.userRequests[0].status).toBe('accepted');
+    expect(reloadedUserRequestsComp.userRequests[0].status).toBe('scheduled');
+    expect(reloadedUserRequestsComp.userRequests[0].confirmedCollectionDate).toBe('2099-10-10');
+    expect(reloadedUserRequestsComp.userRequests[0].confirmedCollectionTime).toBe('11:00');
 
     // 20. Confirm Admin Dashboard statistics update correctly
     await firstValueFrom(authService.login('admin@urbanclean.com', 'Admin123!'));
@@ -224,7 +256,7 @@ describe('UrbanClean — Admin Requests Feature (Full 22-Step Verification Flow)
     expect(adminRequestsComp.filteredRequests.length).toBe(0);
   });
 
-  it('Status lifecycle workflow: Pending → Accepted → Completed or Pending → Rejected', async () => {
+  it('Status lifecycle workflow: assignment, reschedule, schedule, and Collector completion', async () => {
     await firstValueFrom(
       authService.register({
         fullName: 'Fatma Ali',
@@ -246,22 +278,35 @@ describe('UrbanClean — Admin Requests Feature (Full 22-Step Verification Flow)
     const req = adminRequestsComp.requests[0];
     expect(req.status).toBe('pending');
 
-    // Change to Accepted
-    adminRequestsComp.updateStatus(req, 'accepted');
-    expect(adminRequestsComp.requests[0].status).toBe('accepted');
+    adminRequestsComp.openAssignment(req);
+    adminRequestsComp.assignCollector('COLLECTOR01');
+    expect(requestService.getRequestById(req.id)?.status).toBe('assigned');
 
-    // Change to Completed
-    adminRequestsComp.updateStatus(req, 'completed');
-    expect(adminRequestsComp.requests[0].status).toBe('completed');
+    await firstValueFrom(authService.login('collector@urbanclean.com', 'Collector123!'));
+    expect(requestService.proposeCollectionTime(req.id, 'COLLECTOR01', '2099-10-10', '10:00')).toBe(true);
+    authService.logout();
 
-    let raw: WasteRequest[] = JSON.parse(localStorage.getItem('urbanclean_requests')!);
+    await firstValueFrom(authService.login('admin@urbanclean.com', 'Admin123!'));
+    expect(requestService.requestDifferentTime(req.id)).toBe(true);
+    expect(requestService.getRequestById(req.id)?.status).toBe('reschedule-required');
+
+    authService.logout();
+    await firstValueFrom(authService.login('collector@urbanclean.com', 'Collector123!'));
+    expect(requestService.proposeCollectionTime(req.id, 'COLLECTOR01', '2099-10-10', '12:00')).toBe(true);
+    expect(requestService.updateCollectionStatus(req.id, 'on-the-way')).toBe(false);
+
+    authService.logout();
+    await firstValueFrom(authService.login('admin@urbanclean.com', 'Admin123!'));
+    expect(requestService.approveProposedTime(req.id)).toBe(true);
+
+    authService.logout();
+    await firstValueFrom(authService.login('collector@urbanclean.com', 'Collector123!'));
+    expect(requestService.updateCollectionStatus(req.id, 'on-the-way')).toBe(true);
+    expect(requestService.updateCollectionStatus(req.id, 'collected')).toBe(true);
+    expect(requestService.updateCollectionStatus(req.id, 'completed')).toBe(true);
+
+    const raw: WasteRequest[] = JSON.parse(localStorage.getItem('urbanclean_requests')!);
     expect(raw[0].status).toBe('completed');
-
-    // Change to Rejected
-    adminRequestsComp.updateStatus(req, 'rejected');
-    expect(adminRequestsComp.requests[0].status).toBe('rejected');
-
-    raw = JSON.parse(localStorage.getItem('urbanclean_requests')!);
-    expect(raw[0].status).toBe('rejected');
+    expect(raw[0].completedAt).toBeTruthy();
   });
 });

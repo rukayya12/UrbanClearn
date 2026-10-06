@@ -54,7 +54,9 @@ import { User } from '../../../core/models/user.model';
               <th>Request ID</th>
               <th>Waste Type</th>
               <th>Address</th>
-              <th>Requested Time</th>
+              <th>Preferred Date / Time</th>
+              <th>Confirmed Collection</th>
+              <th>Collector</th>
               <th>Status</th>
               <th>Eco Points</th>
               <th>Action</th>
@@ -69,7 +71,10 @@ import { User } from '../../../core/models/user.model';
                 <span class="waste-type-tag" *ngFor="let type of req.wasteTypes">{{ type }}</span>
               </td>
               <td class="address-cell">{{ req.location?.address || 'N/A' }}</td>
-              <td>{{ req.requestedTime | date:'mediumDate' }}</td>
+              <td>{{ req.preferredDate ? (req.preferredDate | date:'mediumDate') : 'No preference' }}<br />{{ req.preferredTime || '' }}</td>
+              <td *ngIf="req.confirmedCollectionDate; else awaitingSchedule">{{ req.confirmedCollectionDate | date:'mediumDate' }} {{ req.confirmedCollectionTime }}</td>
+              <ng-template #awaitingSchedule><td>Not scheduled</td></ng-template>
+              <td>{{ req.collectorName || 'Not assigned' }}</td>
               <td>
                 <span class="status-badge" [style.background-color]="getStatusColor(req.status)">
                   {{ getStatusLabel(req.status) }}
@@ -124,8 +129,16 @@ import { User } from '../../../core/models/user.model';
                 </div>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Scheduled Pickup</span>
-                <span class="detail-value">{{ selectedRequest.requestedTime | date:'medium' }}</span>
+                <span class="detail-label">Preferred Date / Time</span>
+                <span class="detail-value">{{ selectedRequest.preferredDate ? (selectedRequest.preferredDate | date:'mediumDate') : 'No preference' }} {{ selectedRequest.preferredTime || '' }}</span>
+              </div>
+              <div class="detail-item" *ngIf="selectedRequest.proposedCollectionDate">
+                <span class="detail-label">Collector Proposal</span>
+                <span class="detail-value">{{ selectedRequest.proposedCollectionDate | date:'mediumDate' }} at {{ selectedRequest.proposedCollectionTime }}</span>
+              </div>
+              <div class="detail-item" *ngIf="selectedRequest.confirmedCollectionDate">
+                <span class="detail-label">Confirmed Collection</span>
+                <span class="detail-value">{{ selectedRequest.confirmedCollectionDate | date:'mediumDate' }} at {{ selectedRequest.confirmedCollectionTime }}</span>
               </div>
               <div class="detail-item full-width">
                 <span class="detail-label">Pickup Location</span>
@@ -474,7 +487,12 @@ export class RequestsComponent implements OnInit, OnDestroy {
   filterTabs = [
     { id: 'all', label: 'All Requests' },
     { id: 'pending', label: 'Pending' },
-    { id: 'received', label: 'Received' },
+    { id: 'assigned', label: 'Assigned' },
+    { id: 'time-proposed', label: 'Time Proposed' },
+    { id: 'reschedule-required', label: 'Reschedule Required' },
+    { id: 'scheduled', label: 'Scheduled' },
+    { id: 'on-the-way', label: 'On the Way' },
+    { id: 'collected', label: 'Collected' },
     { id: 'completed', label: 'Completed' }
   ];
 
@@ -556,6 +574,12 @@ export class RequestsComponent implements OnInit, OnDestroy {
   getStatusColor(status: RequestStatus | string): string {
     const colors: { [key: string]: string } = {
       'pending': '#f39c12',
+      'assigned': '#2563eb',
+      'time-proposed': '#0369a1',
+      'reschedule-required': '#b45309',
+      'scheduled': '#15803d',
+      'on-the-way': '#0f766e',
+      'collected': '#0f766e',
       'received': '#3498db',
       'processing': '#9b59b6',
       'completed': '#27ae60',
@@ -569,6 +593,12 @@ export class RequestsComponent implements OnInit, OnDestroy {
   getStatusLabel(status: RequestStatus | string): string {
     const labels: { [key: string]: string } = {
       'pending': 'Pending',
+      'assigned': 'Assigned',
+      'time-proposed': 'Time Proposed',
+      'reschedule-required': 'Reschedule Required',
+      'scheduled': 'Scheduled',
+      'on-the-way': 'On the Way',
+      'collected': 'Collected',
       'received': 'Received',
       'processing': 'Processing',
       'completed': 'Completed',

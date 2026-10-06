@@ -78,3 +78,11 @@ export function generateNextUserId(existingUsers: { id?: string; role?: string }
   return `USER${padded}`;
 }
 
+export function generateNextCollectorId(existingUsers: { id?: string }[] = []): string {
+  const collectorIds = existingUsers
+    .map(user => user.id || '')
+    .filter(id => /^COLLECTOR\d+$/i.test(id));
+  const highest = collectorIds.reduce((max, id) => Math.max(max, Number(id.replace(/^COLLECTOR/i, ''))), 0);
+  return `COLLECTOR${String(highest + 1).padStart(2, '0')}`;
+}
+

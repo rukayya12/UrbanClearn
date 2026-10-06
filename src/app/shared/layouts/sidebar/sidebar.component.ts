@@ -62,6 +62,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
         this.menuItems = [
           { label: 'Dashboard', route: '/admin/dashboard', icon: '📊' },
           { label: 'Users', route: '/admin/users', icon: '👥' },
+          { label: 'Collectors', route: '/super-admin/collectors', icon: '🚛' },
           { label: 'Requests', route: '/admin/requests', icon: '📋' },
           { label: 'Map', route: '/admin/map', icon: '🗺️' },
           { label: 'Reports', route: '/admin/reports', icon: '🚨' },
@@ -92,10 +93,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
       case 'COLLECTOR':
         this.menuItems = [
           { label: 'Dashboard', route: '/collector/dashboard', icon: '📊' },
-          { label: 'Requests', route: '/collector/requests', icon: '📋' },
-          { label: 'Schedule', route: '/collector/schedule', icon: '📅' },
-          { label: 'History', route: '/collector/history', icon: '📝' },
-          { label: 'Map', route: '/collector/map', icon: '🗺️' },
+          { label: 'Assigned Collections', route: '/collector/requests', icon: '📋' },
+          { label: 'Collection History', route: '/collector/history', icon: '📝' },
           { label: 'Notifications', route: '/collector/notifications', icon: '🔔' },
           { label: 'Profile', route: '/collector/profile', icon: '👤' }
         ];
@@ -103,9 +102,8 @@ export class SidebarComponent implements OnInit, OnDestroy {
       case 'RECYCLING_CENTRE':
         this.menuItems = [
           { label: 'Dashboard', route: '/centre/dashboard', icon: '📊' },
-          { label: 'Requests', route: '/centre/requests', icon: '📋' },
-          { label: 'Recycling Activity', route: '/centre/recycling', icon: '♻️' },
-          { label: 'Map', route: '/centre/map', icon: '🗺️' },
+          { label: 'Recycling Requests', route: '/centre/requests', icon: '📋' },
+          { label: 'Recycling History', route: '/centre/recycling', icon: '♻️' },
           { label: 'Notifications', route: '/centre/notifications', icon: '🔔' },
           { label: 'Profile', route: '/centre/profile', icon: '👤' }
         ];

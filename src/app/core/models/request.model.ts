@@ -1,5 +1,18 @@
 export type WasteType = 'plastic' | 'organic' | 'liquid' | 'paper' | 'food-waste';
-export type RequestStatus = 'pending' | 'received' | 'processed' | 'scheduling' | 'accepted' | 'rejected' | 'completed';
+export type RequestStatus =
+  | 'pending'
+  | 'assigned'
+  | 'time-proposed'
+  | 'reschedule-required'
+  | 'scheduled'
+  | 'on-the-way'
+  | 'collected'
+  | 'received'
+  | 'processed'
+  | 'scheduling'
+  | 'accepted'
+  | 'rejected'
+  | 'completed';
 export type RequestPriority = 'low' | 'medium' | 'high' | 'critical';
 
 export interface WasteRequest {
@@ -16,13 +29,21 @@ export interface WasteRequest {
   };
   description?: string;
   requestedTime: Date;
+  preferredDate?: string;
+  preferredTime?: string;
+  proposedCollectionDate?: string;
+  proposedCollectionTime?: string;
+  confirmedCollectionDate?: string;
+  confirmedCollectionTime?: string;
   status: RequestStatus;
   statusHistory: StatusChange[];
   collectorId?: string;
   collectorName?: string;
+  assignedAt?: Date;
   recyclingCentreId?: string;
   estimatedArrival?: Date;
   completionTime?: Date;
+  completedAt?: Date;
   greenPoints?: number;
   createdAt: Date;
   updatedAt: Date;

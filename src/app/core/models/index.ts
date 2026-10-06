@@ -4,8 +4,8 @@ export type NotificationType = 'request-submitted' | 'collector-assigned' | 'req
 export interface Notification {
   id: string;
   userId: string;
-  targetRole?: 'ADMIN' | 'NORMAL_USER' | 'ALL';
-  recipientRole?: 'ADMIN' | 'NORMAL_USER' | 'ALL';
+  targetRole?: 'ADMIN' | 'NORMAL_USER' | 'COLLECTOR' | 'ALL';
+  recipientRole?: 'ADMIN' | 'NORMAL_USER' | 'COLLECTOR' | 'ALL';
   type: NotificationType;
   title: string;
   message: string;

@@ -20,7 +20,7 @@ export class NotificationService {
     requestId?: string,
     targetUserId?: string,
     userName?: string,
-    recipientRole: 'ADMIN' | 'NORMAL_USER' | 'ALL' = userId === 'ADMIN' ? 'ADMIN' : 'NORMAL_USER'
+    recipientRole: 'ADMIN' | 'NORMAL_USER' | 'COLLECTOR' | 'ALL' = userId === 'ADMIN' ? 'ADMIN' : 'NORMAL_USER'
   ): Notification {
     const notification: Notification = {
       id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
