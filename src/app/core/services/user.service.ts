@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
-import { User, Collector, RecyclingCentre, UserRole } from '../models/user.model';
+import { User, Collector, RecyclingCentre, UserRole, generateNextUserId } from '../models/user.model';
 
 @Injectable({
   providedIn: 'root'
@@ -9,118 +9,7 @@ export class UserService {
   private usersSubject = new BehaviorSubject<User[]>(this.getUsersFromStorage());
   public users$ = this.usersSubject.asObservable();
 
-  constructor() {
-    this.initializeUsers();
-  }
-
-  private initializeUsers(): void {
-    const users = this.getUsersFromStorage();
-    
-    if (users.length <= 5) {
-      // Add more mock users for demonstration
-      const additionalUsers: User[] = [
-        {
-          id: 'user-002',
-          fullName: 'Jane Smith',
-          email: 'jane@example.com',
-          phone: '+255 345 678 902',
-          password: 'User123!',
-          role: 'normal-user',
-          location: {
-            latitude: -6.1630,
-            longitude: 35.7470,
-            address: 'Hurumzi St, Zanzibar',
-            region: 'Zanzibar',
-            district: 'Zanzibar City',
-            city: 'Stone Town'
-          },
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          isActive: true
-        },
-        {
-          id: 'user-003',
-          fullName: 'Ahmed Hassan',
-          email: 'ahmed@example.com',
-          phone: '+255 345 678 903',
-          password: 'User123!',
-          role: 'normal-user',
-          location: {
-            latitude: -6.1720,
-            longitude: 35.7520,
-            address: 'Malindi, Zanzibar',
-            region: 'Zanzibar',
-            district: 'Zanzibar City',
-            city: 'Stone Town'
-          },
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          isActive: true
-        },
-        {
-          id: 'collector-002',
-          fullName: 'Collector Two',
-          email: 'collector2@urbanclean.com',
-          phone: '+255 456 789 013',
-          password: 'Collector123!',
-          role: 'collector',
-          location: {
-            latitude: -6.1800,
-            longitude: 35.7350,
-            address: 'Bumbuli, Zanzibar',
-            region: 'Zanzibar',
-            district: 'Zanzibar East',
-            city: 'Bumbuli'
-          },
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          isActive: true
-        },
-        {
-          id: 'collector-003',
-          fullName: 'Collector Three',
-          email: 'collector3@urbanclean.com',
-          phone: '+255 456 789 014',
-          password: 'Collector123!',
-          role: 'collector',
-          location: {
-            latitude: -6.1550,
-            longitude: 35.7380,
-            address: 'Wete, Pemba',
-            region: 'Zanzibar',
-            district: 'Pemba North',
-            city: 'Wete'
-          },
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          isActive: true
-        },
-        {
-          id: 'centre-002',
-          fullName: 'Recycling Centre B',
-          email: 'centre2@urbanclean.com',
-          phone: '+255 567 890 124',
-          password: 'Centre123!',
-          role: 'recycling-centre',
-          location: {
-            latitude: -6.2200,
-            longitude: 35.7600,
-            address: 'Muungano, Zanzibar',
-            region: 'Zanzibar',
-            district: 'Zanzibar South',
-            city: 'Muungano'
-          },
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          isActive: true
-        }
-      ];
-
-      const allUsers = [...users, ...additionalUsers];
-      localStorage.setItem('urbanclean_users', JSON.stringify(allUsers));
-      this.usersSubject.next(allUsers);
-    }
-  }
+  constructor() {}
 
   getAllUsers(): User[] {
     return this.getUsersFromStorage();
@@ -135,7 +24,7 @@ export class UserService {
   }
 
   getCollectors(): Collector[] {
-    const collectors = this.getUsersByRole('collector') as unknown as Collector[];
+    const collectors = this.getUsersByRole('COLLECTOR') as unknown as Collector[];
     return collectors.map(c => ({
       ...c,
       availability: c.availability || 'available',
@@ -146,7 +35,7 @@ export class UserService {
   }
 
   getRecyclingCentres(): RecyclingCentre[] {
-    const centres = this.getUsersByRole('recycling-centre') as unknown as RecyclingCentre[];
+    const centres = this.getUsersByRole('RECYCLING_CENTRE') as unknown as RecyclingCentre[];
     return centres.map(c => ({
       ...c,
       capacity: c.capacity || 1000,
@@ -177,7 +66,7 @@ export class UserService {
   updateCollectorAvailability(collectorId: string, availability: 'available' | 'busy' | 'offline'): boolean {
     const user = this.getUserById(collectorId) as Collector;
 
-    if (!user || user.role !== 'collector') {
+    if (!user || user.role !== 'COLLECTOR') {
       return false;
     }
 
@@ -230,15 +119,43 @@ export class UserService {
   } {
     const users = this.getAllUsers();
     return {
-      totalUsers: users.filter(u => u.role === 'normal-user').length,
-      collectors: users.filter(u => u.role === 'collector').length,
-      recyclingCentres: users.filter(u => u.role === 'recycling-centre').length,
+      totalUsers: users.filter(u => u.role === 'NORMAL_USER').length,
+      collectors: users.filter(u => u.role === 'COLLECTOR').length,
+      recyclingCentres: users.filter(u => u.role === 'RECYCLING_CENTRE').length,
       activeCollectors: this.getActiveCollectors().length
     };
   }
 
   private getUsersFromStorage(): User[] {
     const stored = localStorage.getItem('urbanclean_users');
-    return stored ? JSON.parse(stored) : [];
+    if (!stored) return [];
+    try {
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) return [];
+
+      let modified = false;
+      const users = parsed.map((user: User) => {
+        let userId = user.id;
+        // If user does not have a suitable sequential ID (USER01, USER02, ... or ADMIN01)
+        if (!userId || typeof userId !== 'string' || (!/^USER\d+$/i.test(userId) && userId !== 'ADMIN01' && !userId.startsWith('admin-'))) {
+          if (user.role === 'ADMIN' || (user.email && user.email.toLowerCase() === 'admin@urbanclean.com')) {
+            userId = 'ADMIN01';
+          } else {
+            userId = generateNextUserId(parsed);
+          }
+          modified = true;
+        }
+        return { ...user, id: userId };
+      });
+
+      if (modified) {
+        localStorage.setItem('urbanclean_users', JSON.stringify(users));
+      }
+      return users;
+    } catch {
+      return [];
+    }
   }
 }
+
+

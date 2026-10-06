@@ -4,6 +4,7 @@ import { WasteRequest, StatusChange, RequestStatus, WasteType } from '../models/
 import { LocationService } from './location.service';
 import { AuthService } from './auth.service';
 import { UserService } from './user.service';
+import { NotificationService } from './notification.service';
 
 @Injectable({
   providedIn: 'root'
@@ -15,46 +16,108 @@ export class RequestService {
   constructor(
     private locationService: LocationService,
     private authService: AuthService,
-    private userService: UserService
+    private userService: UserService,
+    private notificationService: NotificationService
   ) {
     this.initializeRequests();
   }
 
   private initializeRequests(): void {
-    // Initialize with some mock data if empty
-    const requests = this.getRequestsFromStorage();
-    if (requests.length === 0) {
-      const mockRequests: WasteRequest[] = [
-        {
-          id: 'req-001',
-          userId: 'user-001',
-          userName: 'John Doe',
-          userPhone: '+255 345 678 901',
-          wasteTypes: ['plastic', 'paper'],
-          location: {
-            latitude: -6.1650,
-            longitude: 35.7460,
-            address: 'Forodhani, Zanzibar'
-          },
-          description: 'Regular household waste collection',
-          requestedTime: new Date(new Date().getTime() - 2 * 24 * 60 * 60 * 1000),
-          status: 'completed',
-          statusHistory: [
-            { status: 'pending', timestamp: new Date(new Date().getTime() - 2 * 24 * 60 * 60 * 1000) },
-            { status: 'received', timestamp: new Date(new Date().getTime() - 1.9 * 24 * 60 * 60 * 1000) },
-            { status: 'completed', timestamp: new Date(new Date().getTime() - 1.8 * 24 * 60 * 60 * 1000) }
-          ],
-          collectorId: 'collector-001',
-          collectorName: 'Collector One',
-          completionTime: new Date(new Date().getTime() - 1.8 * 24 * 60 * 60 * 1000),
-          greenPoints: 10,
-          createdAt: new Date(new Date().getTime() - 2 * 24 * 60 * 60 * 1000),
-          updatedAt: new Date(new Date().getTime() - 1.8 * 24 * 60 * 60 * 1000)
+    const stored = localStorage.getItem('urbanclean_requests');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          // Clean out fake user-001 mock requests or any temporary test prefixes
+          let modified = false;
+          const cleaned = parsed
+            .filter((r: any) => r.userId !== 'user-001')
+            .map((r: any) => {
+              if (typeof r.id === 'string' && r.id.startsWith('legacy-')) {
+                modified = true;
+                return { ...r, id: r.id.replace('legacy-', '') };
+              }
+              return r;
+            });
+
+          const hasReq01 = cleaned.some((r: any) => r.id === 'REQ01');
+          if (!hasReq01) {
+            localStorage.removeItem('urbanclean_request_seq');
+          }
+
+          if (cleaned.length !== parsed.length || modified) {
+            localStorage.setItem('urbanclean_requests', JSON.stringify(cleaned));
+            this.requestsSubject.next(cleaned);
+            return;
+          }
         }
-      ];
-      localStorage.setItem('urbanclean_requests', JSON.stringify(mockRequests));
-      this.requestsSubject.next(mockRequests);
+      } catch {}
+    } else {
+      localStorage.removeItem('urbanclean_request_seq');
     }
+  }
+
+  /**
+   * Generates the next simple sequential Request ID: REQ01, REQ02, REQ03, ...
+   * Ensures that old demo requests, timestamp IDs, or unrelated IDs do NOT affect the sequence.
+   * If there are no existing valid sequential requests, the first is REQ01.
+   * Formats are strictly REQ01, REQ02, REQ03, ... with NO prefixes.
+   */
+  generateNextRequestId(userId?: string): string {
+    const allRequests = this.getRequestsFromStorage();
+
+    // Trace the contiguous chain of valid sequential requests starting at 1 (REQ01)
+    let validSeqLength = 0;
+    let lastCreatedAt = -1;
+    let lastIndex = -1;
+
+    while (true) {
+      const targetNum = validSeqLength + 1;
+      const targetPad = targetNum < 10 ? `0${targetNum}` : `${targetNum}`;
+      const targetId = `REQ${targetPad}`;
+
+      const candidates = allRequests.filter(r => 
+        r.id === targetId && 
+        r.userId !== 'user-001'
+      );
+
+      if (candidates.length === 0) {
+        break;
+      }
+
+      if (validSeqLength === 0) {
+        // First request REQ01 marks the start of the valid sequential chain
+        const reqTime = candidates[0].createdAt ? new Date(candidates[0].createdAt).getTime() : 0;
+        lastCreatedAt = isNaN(reqTime) ? 0 : reqTime;
+        lastIndex = allRequests.indexOf(candidates[0]);
+        validSeqLength = 1;
+      } else {
+        // Subsequent requests must be in chronological or storage order following the predecessor
+        const validCandidate = candidates.find(r => {
+          const reqTime = r.createdAt ? new Date(r.createdAt).getTime() : 0;
+          const idx = allRequests.indexOf(r);
+          return (isNaN(reqTime) ? false : reqTime >= lastCreatedAt) || idx > lastIndex;
+        });
+
+        if (validCandidate) {
+          const reqTime = validCandidate.createdAt ? new Date(validCandidate.createdAt).getTime() : 0;
+          lastCreatedAt = isNaN(reqTime) ? lastCreatedAt : reqTime;
+          lastIndex = Math.max(lastIndex, allRequests.indexOf(validCandidate));
+          validSeqLength++;
+        } else {
+          break;
+        }
+      }
+    }
+
+    const nextSeq = validSeqLength + 1;
+    const padded = nextSeq < 10 ? `0${nextSeq}` : `${nextSeq}`;
+    const nextId = `REQ${padded}`;
+
+    // Update storage counter
+    localStorage.setItem('urbanclean_request_seq', nextSeq.toString());
+
+    return nextId;
   }
 
   createRequest(
@@ -81,10 +144,14 @@ export class RequestService {
           return;
         }
 
+        const nextId = this.generateNextRequestId(currentUser.id);
+        const now = new Date();
+
         const request: WasteRequest = {
-          id: `req-${Date.now()}`,
+          id: nextId,
           userId: currentUser.id,
           userName: currentUser.fullName,
+          userEmail: currentUser.email,
           userPhone: currentUser.phone,
           wasteTypes,
           location: {
@@ -96,29 +163,47 @@ export class RequestService {
           requestedTime,
           status: 'pending',
           statusHistory: [
-            { status: 'pending', timestamp: new Date() }
+            { status: 'pending', timestamp: now, notes: 'Request created by user' }
           ],
-          createdAt: new Date(),
-          updatedAt: new Date()
+          createdAt: now,
+          updatedAt: now
         };
 
-        // Auto-assign collector
-        const collectors = this.userService.getCollectors();
-        const result = this.locationService.findNearestCollector(latitude, longitude, collectors);
-
-        if (result.collector) {
-          request.collectorId = result.collector.id;
-          request.collectorName = result.collector.fullName;
-          this.updateRequestStatus(request.id, 'received');
-        } else {
-          request.status = 'received';
-          this.updateRequestStatus(request.id, 'received', 'No nearby collector available');
-        }
-
-        const requests = this.getRequestsFromStorage();
+        // Filter out any stale item that had this ID so IDs remain unique
+        const requests = this.getRequestsFromStorage().filter(r => r.id !== nextId);
         requests.push(request);
         localStorage.setItem('urbanclean_requests', JSON.stringify(requests));
         this.requestsSubject.next(requests);
+
+        // Notify user via notification service
+        try {
+          this.notificationService.createNotification(
+            currentUser.id,
+            'request-submitted',
+            'Request Submitted',
+            `Waste collection request ${request.id} has been submitted successfully.`,
+            '/user/requests',
+            request.id,
+            currentUser.id,
+            currentUser.fullName,
+            'NORMAL_USER'
+          );
+
+          // Notify Admin
+          this.notificationService.createNotification(
+            'ADMIN',
+            'request-submitted',
+            'New Collection Request',
+            `${currentUser.fullName} submitted collection request ${request.id}.`,
+            '/admin/requests',
+            request.id,
+            currentUser.id,
+            currentUser.fullName,
+            'ADMIN'
+          );
+        } catch {
+          // Ignore notification error
+        }
 
         observer.next({
           success: true,
@@ -126,7 +211,7 @@ export class RequestService {
           requestId: request.id
         });
         observer.complete();
-      }, 500);
+      }, 200);
     });
   }
 
@@ -182,6 +267,41 @@ export class RequestService {
         localStorage.setItem('urbanclean_requests', JSON.stringify(requests));
         this.requestsSubject.next(requests);
 
+        try {
+          let notifType: 'request-accepted' | 'request-rejected' | 'collection-completed' | 'system' = 'system';
+          if (newStatus === 'accepted') notifType = 'request-accepted';
+          else if (newStatus === 'rejected') notifType = 'request-rejected';
+          else if (newStatus === 'completed') notifType = 'collection-completed';
+
+          const statusVerb = (newStatus || '').toLowerCase();
+
+          // User notification
+          this.notificationService.createNotification(
+            request.userId,
+            notifType,
+            'Request Status Updated',
+            `Request ${request.id} has been ${statusVerb}.`,
+            '/user/requests',
+            request.id,
+            request.userId,
+            request.userName,
+            'NORMAL_USER'
+          );
+
+          // Admin notification
+          this.notificationService.createNotification(
+            'ADMIN',
+            notifType,
+            'Request Status Updated',
+            `Request ${request.id} has been ${statusVerb}.`,
+            '/admin/requests',
+            request.id,
+            request.userId,
+            request.userName,
+            'ADMIN'
+          );
+        } catch {}
+
         observer.next({ success: true, message: 'Request status updated' });
         observer.complete();
       }, 300);
@@ -200,6 +320,77 @@ export class RequestService {
     return this.updateRequestStatus(requestId, 'completed', 'Collection completed successfully');
   }
 
+  /**
+   * Synchronously changes request status and persists to urbanclean_requests
+   */
+  changeStatus(requestId: string, newStatus: RequestStatus | string, notes?: string): boolean {
+    const requests = this.getRequestsFromStorage();
+    const request = requests.find(r => r.id === requestId);
+
+    if (!request) {
+      return false;
+    }
+
+    const normalizedStatus = (newStatus.toLowerCase() as RequestStatus);
+    const statusChange: StatusChange = {
+      status: normalizedStatus,
+      timestamp: new Date(),
+      notes: notes || `Status updated to ${normalizedStatus} by Admin`
+    };
+
+    request.status = normalizedStatus;
+    if (!request.statusHistory) {
+      request.statusHistory = [];
+    }
+    request.statusHistory.push(statusChange);
+    request.updatedAt = new Date();
+
+    if (normalizedStatus === 'completed') {
+      request.completionTime = new Date();
+      request.greenPoints = this.calculateGreenPoints(request);
+    }
+
+    localStorage.setItem('urbanclean_requests', JSON.stringify(requests));
+    this.requestsSubject.next(requests);
+
+    try {
+      let notifType: 'request-accepted' | 'request-rejected' | 'collection-completed' | 'system' = 'system';
+      if (normalizedStatus === 'accepted') notifType = 'request-accepted';
+      else if (normalizedStatus === 'rejected') notifType = 'request-rejected';
+      else if (normalizedStatus === 'completed') notifType = 'collection-completed';
+
+      const statusVerb = normalizedStatus;
+
+      // User notification
+      this.notificationService.createNotification(
+        request.userId,
+        notifType,
+        'Request Status Updated',
+        `Request ${request.id} has been ${statusVerb}.`,
+        '/user/requests',
+        request.id,
+        request.userId,
+        request.userName,
+        'NORMAL_USER'
+      );
+
+      // Admin notification
+      this.notificationService.createNotification(
+        'ADMIN',
+        notifType,
+        'Request Status Updated',
+        `Request ${request.id} has been ${statusVerb}.`,
+        '/admin/requests',
+        request.id,
+        request.userId,
+        request.userName,
+        'ADMIN'
+      );
+    } catch {}
+
+    return true;
+  }
+
   getAllRequests(): WasteRequest[] {
     return this.getRequestsFromStorage();
   }
@@ -207,24 +398,27 @@ export class RequestService {
   getRequestsStats(): {
     total: number;
     pending: number;
+    accepted: number;
     completed: number;
     rejected: number;
   } {
     const requests = this.getRequestsFromStorage();
     return {
       total: requests.length,
-      pending: requests.filter(r => r.status === 'pending' || r.status === 'received' || r.status === 'scheduling').length,
-      completed: requests.filter(r => r.status === 'completed').length,
-      rejected: requests.filter(r => r.status === 'rejected').length
+      pending: requests.filter(r => ['pending', 'received', 'scheduling'].includes(r.status?.toLowerCase())).length,
+      accepted: requests.filter(r => r.status?.toLowerCase() === 'accepted').length,
+      completed: requests.filter(r => r.status?.toLowerCase() === 'completed').length,
+      rejected: requests.filter(r => r.status?.toLowerCase() === 'rejected').length
     };
   }
 
   private calculateGreenPoints(request: WasteRequest): number {
     // Base points per waste type
-    const points = request.wasteTypes.length * 10;
+    const points = (request.wasteTypes?.length || 1) * 10;
     
     // Bonus for on-time completion (if completed within 24 hours)
-    const timeDiff = new Date().getTime() - request.createdAt.getTime();
+    const createdAtTime = request.createdAt ? new Date(request.createdAt).getTime() : 0;
+    const timeDiff = new Date().getTime() - createdAtTime;
     const hoursElapsed = timeDiff / (1000 * 60 * 60);
     
     if (hoursElapsed <= 24) {
@@ -236,6 +430,64 @@ export class RequestService {
 
   private getRequestsFromStorage(): WasteRequest[] {
     const stored = localStorage.getItem('urbanclean_requests');
-    return stored ? JSON.parse(stored) : [];
+    if (!stored) return [];
+
+    let requests: WasteRequest[];
+    try {
+      requests = JSON.parse(stored);
+    } catch {
+      return [];
+    }
+
+    if (!Array.isArray(requests)) {
+      return [];
+    }
+
+    // Auto-enrich userEmail from urbanclean_users if missing
+    let usersList: any[] = [];
+    try {
+      const rawUsers = localStorage.getItem('urbanclean_users');
+      if (rawUsers) {
+        usersList = JSON.parse(rawUsers);
+      }
+    } catch {}
+
+    return requests.map(req => {
+      if (!req.userEmail && req.userId) {
+        const found = usersList.find(u => u.id === req.userId);
+        if (found) {
+          return { ...req, userEmail: found.email, userName: req.userName || found.fullName, userPhone: req.userPhone || found.phone };
+        }
+      }
+      return req;
+    });
+  }
+
+  /**
+   * Helper to update notification request ID references if needed
+   */
+  private updateNotificationRequestId(oldId: string, newId: string): void {
+    try {
+      const raw = localStorage.getItem('urbanclean_notifications');
+      if (raw) {
+        const notifs = JSON.parse(raw);
+        let changed = false;
+        for (const n of notifs) {
+          if (n.requestId === oldId) {
+            n.requestId = newId;
+            changed = true;
+          }
+          if (n.message && typeof n.message === 'string' && n.message.includes(oldId)) {
+            n.message = n.message.split(oldId).join(newId);
+            changed = true;
+          }
+        }
+        if (changed) {
+          localStorage.setItem('urbanclean_notifications', JSON.stringify(notifs));
+        }
+      }
+    } catch {
+      // Ignore notification parse error
+    }
   }
 }

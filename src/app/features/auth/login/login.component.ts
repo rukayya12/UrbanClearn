@@ -1,13 +1,13 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../../core/services/auth.service';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterLink],
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.scss']
 })
@@ -17,11 +17,13 @@ export class LoginComponent implements OnInit {
   loading = false;
   errorMessage = '';
   successMessage = '';
+  isNotRegistered = false;
 
   constructor(
     private formBuilder: FormBuilder,
     private authService: AuthService,
-    private router: Router
+    private router: Router,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
@@ -31,8 +33,7 @@ export class LoginComponent implements OnInit {
   initializeForm(): void {
     this.loginForm = this.formBuilder.group({
       email: ['', [Validators.required, Validators.email]],
-      password: ['', [Validators.required, Validators.minLength(6)]],
-      rememberMe: [false]
+      password: ['', [Validators.required]]
     });
   }
 
@@ -41,14 +42,17 @@ export class LoginComponent implements OnInit {
   }
 
   login(): void {
+    this.errorMessage = '';
+    this.successMessage = '';
+    this.isNotRegistered = false;
+
     if (this.loginForm.invalid) {
-      this.errorMessage = 'Please fill in all required fields correctly';
+      this.loginForm.markAllAsTouched();
+      this.errorMessage = 'Please enter a valid email and password.';
       return;
     }
 
     this.loading = true;
-    this.errorMessage = '';
-
     const { email, password } = this.loginForm.value;
 
     this.authService.login(email, password).subscribe({
@@ -56,37 +60,42 @@ export class LoginComponent implements OnInit {
         this.loading = false;
 
         if (response.success) {
+          this.isNotRegistered = false;
           this.successMessage = 'Login successful! Redirecting...';
           const role = this.authService.getCurrentRole();
 
           setTimeout(() => {
             switch (role) {
-              case 'super-admin':
+              case 'SUPER_ADMIN':
                 this.router.navigate(['/super-admin/dashboard']);
                 break;
-              case 'admin':
+              case 'ADMIN':
                 this.router.navigate(['/admin/dashboard']);
                 break;
-              case 'normal-user':
+              case 'NORMAL_USER':
                 this.router.navigate(['/user/dashboard']);
                 break;
-              case 'collector':
+              case 'COLLECTOR':
                 this.router.navigate(['/collector/dashboard']);
                 break;
-              case 'recycling-centre':
+              case 'RECYCLING_CENTRE':
                 this.router.navigate(['/centre/dashboard']);
                 break;
               default:
-                this.router.navigate(['/login']);
+                this.router.navigate(['/user/dashboard']);
             }
-          }, 500);
+          }, 400);
         } else {
           this.errorMessage = response.message;
+          this.isNotRegistered = false;
         }
+        this.cdr.markForCheck();
       },
       error: () => {
         this.loading = false;
+        this.isNotRegistered = false;
         this.errorMessage = 'An error occurred. Please try again.';
+        this.cdr.markForCheck();
       }
     });
   }
@@ -94,22 +103,5 @@ export class LoginComponent implements OnInit {
   goToRegister(): void {
     this.router.navigate(['/register']);
   }
-
-  fillDemoAccount(role: string): void {
-    const demoAccounts: { [key: string]: { email: string; password: string } } = {
-      'super-admin': { email: 'superadmin@urbanclean.com', password: 'Admin123!' },
-      'admin': { email: 'admin@urbanclean.com', password: 'Admin123!' },
-      'user': { email: 'user@urbanclean.com', password: 'User123!' },
-      'collector': { email: 'collector@urbanclean.com', password: 'Collector123!' },
-      'centre': { email: 'centre@urbanclean.com', password: 'Centre123!' }
-    };
-
-    const account = demoAccounts[role];
-    if (account) {
-      this.loginForm.patchValue({
-        email: account.email,
-        password: account.password
-      });
-    }
-  }
 }
+

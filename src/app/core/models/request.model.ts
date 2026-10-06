@@ -6,6 +6,7 @@ export interface WasteRequest {
   id: string;
   userId: string;
   userName: string;
+  userEmail?: string;
   userPhone: string;
   wasteTypes: WasteType[];
   location: {

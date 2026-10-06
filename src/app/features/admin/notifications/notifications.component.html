@@ -1,0 +1,197 @@
+<div class="notifications-page">
+  <!-- Page Header -->
+  <header class="page-header">
+    <div class="header-left">
+      <div class="header-badge">
+        <span class="badge-icon">🔔</span>
+        <span>System Activity Updates</span>
+      </div>
+      <h1 class="page-title">Admin Notifications</h1>
+      <p class="page-subtitle">Track and manage waste collection requests, registrations, and system events</p>
+    </div>
+
+    <div class="header-actions">
+      <button 
+        type="button" 
+        class="btn-mark-all" 
+        (click)="markAllAsRead()"
+        [disabled]="unreadCount === 0"
+        title="Mark all notifications as read"
+      >
+        <span class="btn-icon">✓✓</span>
+        <span>Mark all as read</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Summary Stats Bar -->
+  <div class="stats-row">
+    <div class="stat-card" (click)="setFilter('ALL')" [class.active-stat]="activeFilter === 'ALL'">
+      <div class="stat-icon-wrapper total">
+        <span>🔔</span>
+      </div>
+      <div class="stat-info">
+        <span class="stat-label">Total Notifications</span>
+        <span class="stat-value">{{ totalCount }}</span>
+      </div>
+    </div>
+
+    <div class="stat-card" (click)="setFilter('UNREAD')" [class.active-stat]="activeFilter === 'UNREAD'">
+      <div class="stat-icon-wrapper unread">
+        <span>📬</span>
+      </div>
+      <div class="stat-info">
+        <span class="stat-label">Unread</span>
+        <span class="stat-value unread-val">{{ unreadCount }}</span>
+      </div>
+    </div>
+
+    <div class="stat-card" (click)="setFilter('READ')" [class.active-stat]="activeFilter === 'READ'">
+      <div class="stat-icon-wrapper read">
+        <span>📭</span>
+      </div>
+      <div class="stat-info">
+        <span class="stat-label">Read</span>
+        <span class="stat-value read-val">{{ readCount }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Search & Filter Controls -->
+  <section class="controls-card">
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input 
+        type="text" 
+        [(ngModel)]="searchTerm" 
+        (input)="onSearchChange()" 
+        placeholder="Search by title, message, request ID, user ID, user name..." 
+        aria-label="Search notifications"
+        class="search-input"
+      />
+      <button *ngIf="searchTerm" type="button" class="btn-clear-search" (click)="clearSearch()" title="Clear search">✕</button>
+    </div>
+
+    <div class="filter-tabs">
+      <button 
+        type="button" 
+        class="filter-tab" 
+        [class.active]="activeFilter === 'ALL'"
+        (click)="setFilter('ALL')"
+      >
+        All <span class="tab-count">{{ totalCount }}</span>
+      </button>
+      <button 
+        type="button" 
+        class="filter-tab" 
+        [class.active]="activeFilter === 'UNREAD'"
+        (click)="setFilter('UNREAD')"
+      >
+        Unread <span class="tab-count" [class.highlight]="unreadCount > 0">{{ unreadCount }}</span>
+      </button>
+      <button 
+        type="button" 
+        class="filter-tab" 
+        [class.active]="activeFilter === 'READ'"
+        (click)="setFilter('READ')"
+      >
+        Read <span class="tab-count">{{ readCount }}</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- Notifications List -->
+  <main class="notifications-container">
+    <div *ngIf="filteredNotifications.length === 0" class="empty-state">
+      <div class="empty-icon">📭</div>
+      <h3 class="empty-title">No notifications found.</h3>
+      <p class="empty-desc" *ngIf="searchTerm || activeFilter !== 'ALL'">
+        Try clearing your search terms or changing your status filter.
+      </p>
+      <p class="empty-desc" *ngIf="!searchTerm && activeFilter === 'ALL'">
+        System notifications will appear here when users register or submit collection requests.
+      </p>
+      <button *ngIf="searchTerm" type="button" class="btn-reset-search" (click)="clearSearch()">
+        Clear Search
+      </button>
+    </div>
+
+    <div *ngIf="filteredNotifications.length > 0" class="notifications-list">
+      <article 
+        *ngFor="let notification of filteredNotifications"
+        class="notification-card"
+        [class.unread]="!notification.read"
+        (click)="onNotificationClick(notification)"
+      >
+        <div class="card-indicator" [class.indicator-unread]="!notification.read"></div>
+
+        <div class="card-left">
+          <div class="type-icon-box" [ngClass]="notification.type">
+            <span>{{ getTypeIcon(notification.type) }}</span>
+          </div>
+        </div>
+
+        <div class="card-main">
+          <div class="card-header-row">
+            <h2 class="card-title">{{ notification.title }}</h2>
+            <span class="status-badge" [class.badge-unread]="!notification.read" [class.badge-read]="notification.read">
+              {{ notification.read ? 'Read' : 'Unread' }}
+            </span>
+          </div>
+
+          <p class="card-message">{{ notification.message }}</p>
+
+          <div class="card-footer-row">
+            <div class="timestamp-box">
+              <span class="time-icon">🕒</span>
+              <time class="date-time-text">
+                {{ notification.createdAt | date:'dd/MM/yyyy' }} • {{ notification.createdAt | date:'shortTime' }}
+              </time>
+            </div>
+
+            <div class="card-actions" (click)="$event.stopPropagation()">
+              <button 
+                *ngIf="!notification.read" 
+                type="button" 
+                class="btn-action-read" 
+                (click)="onNotificationClick(notification)"
+                title="Mark as Read"
+              >
+                ✓ Mark Read
+              </button>
+              <button 
+                type="button" 
+                class="btn-action-delete" 
+                (click)="promptDelete(notification, $event)"
+                title="Delete notification"
+              >
+                🗑️
+              </button>
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
+  </main>
+
+  <!-- Delete Confirmation Modal -->
+  <div *ngIf="showDeleteModal" class="modal-backdrop" (click)="cancelDelete()">
+    <div class="modal-card" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-icon-danger">⚠️</div>
+        <h3>Delete Notification</h3>
+      </div>
+      <div class="modal-body">
+        <p class="confirm-text">Are you sure you want to delete this notification?</p>
+        <div *ngIf="notificationToDelete" class="deleted-preview">
+          <strong>{{ notificationToDelete.title }}</strong>
+          <p>{{ notificationToDelete.message }}</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modal-cancel" (click)="cancelDelete()">Cancel</button>
+        <button type="button" class="btn-modal-confirm" (click)="confirmDelete()">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>

@@ -15,7 +15,7 @@
       <div class="profile-menu" [class.open]="showProfileMenu">
         <button class="profile-btn" (click)="toggleProfileMenu()">
           <span class="avatar">👤</span>
-          <span class="user-name" *ngIf="currentUser">{{ currentUser.fullName }}</span>
+          <span class="user-name" *ngIf="currentUser">{{ currentUser.fullName }}<small>{{ currentUser.role }}</small></span>
           <span class="arrow">▼</span>
         </button>
 

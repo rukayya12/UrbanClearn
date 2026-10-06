@@ -1,10 +1,7 @@
 <aside class="sidebar" [class.collapsed]="isCollapsed">
   <div class="sidebar-header">
-    <div class="logo">🌱</div>
-    <h1 *ngIf="!isCollapsed">UrbanClean</h1>
-    <button class="toggle-btn" (click)="toggleSidebar()">
-      {{ isCollapsed ? '→' : '←' }}
-    </button>
+    <h2 *ngIf="!isCollapsed" class="sidebar-title">MENU</h2>
+    <span *ngIf="isCollapsed" class="collapsed-title" title="MENU">☰</span>
   </div>
 
   <nav class="sidebar-nav">
@@ -19,6 +16,9 @@
         >
           <span class="icon">{{ item.icon }}</span>
           <span *ngIf="!isCollapsed" class="label">{{ item.label }}</span>
+          <span *ngIf="!isCollapsed && item.label === 'Notifications'" class="nav-badge" [class.badge-zero]="unreadCount === 0">
+            {{ unreadCount }}
+          </span>
         </a>
       </li>
     </ul>

@@ -52,22 +52,22 @@ export class NavbarComponent implements OnInit {
     this.showProfileMenu = false;
     // Navigate to profile based on role
     const role = this.authService.getCurrentRole();
-    if (role === 'normal-user') {
+    if (role === 'NORMAL_USER') {
       this.router.navigate(['/user/profile']);
-    } else if (role === 'collector') {
+    } else if (role === 'COLLECTOR') {
       this.router.navigate(['/collector/profile']);
-    } else if (role === 'recycling-centre') {
+    } else if (role === 'RECYCLING_CENTRE') {
       this.router.navigate(['/centre/profile']);
     }
   }
 
   goToNotifications(): void {
     const role = this.authService.getCurrentRole();
-    if (role === 'normal-user') {
+    if (role === 'NORMAL_USER') {
       this.router.navigate(['/user/notifications']);
-    } else if (role === 'collector') {
+    } else if (role === 'COLLECTOR') {
       this.router.navigate(['/collector/notifications']);
-    } else if (role === 'recycling-centre') {
+    } else if (role === 'RECYCLING_CENTRE') {
       this.router.navigate(['/centre/notifications']);
     }
   }

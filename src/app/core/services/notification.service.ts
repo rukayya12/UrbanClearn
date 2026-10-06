@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, Observable } from 'rxjs';
 import { Notification, NotificationType } from '../models/index';
 
 @Injectable({
@@ -17,18 +17,25 @@ export class NotificationService {
     title: string,
     message: string,
     actionUrl?: string,
-    requestId?: string
+    requestId?: string,
+    targetUserId?: string,
+    userName?: string,
+    recipientRole: 'ADMIN' | 'NORMAL_USER' | 'ALL' = userId === 'ADMIN' ? 'ADMIN' : 'NORMAL_USER'
   ): Notification {
     const notification: Notification = {
-      id: `notif-${Date.now()}`,
+      id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       userId,
+      recipientRole,
+      targetRole: recipientRole,
       type,
       title,
       message,
       read: false,
       createdAt: new Date(),
       actionUrl,
-      requestId
+      requestId,
+      targetUserId,
+      userName
     };
 
     const notifications = this.getNotificationsFromStorage();
@@ -39,13 +46,26 @@ export class NotificationService {
     return notification;
   }
 
+  getAdminNotifications(): Notification[] {
+    return this.getNotificationsFromStorage()
+      .filter(n => n.recipientRole === 'ADMIN' || n.targetRole === 'ADMIN' || n.userId === 'ADMIN' || n.userId === 'admin')
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  getAdminUnreadCount(): number {
+    return this.getAdminNotifications().filter(n => !n.read).length;
+  }
+
   getUserNotifications(userId: string): Notification[] {
     return this.getNotificationsFromStorage()
-      .filter(n => n.userId === userId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      .filter(n => n.userId === userId || (n.recipientRole === 'NORMAL_USER' && n.targetUserId === userId))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
   getUnreadCount(userId: string): number {
+    if (userId === 'ADMIN' || userId === 'admin') {
+      return this.getAdminUnreadCount();
+    }
     return this.getUserNotifications(userId).filter(n => !n.read).length;
   }
 
@@ -64,10 +84,14 @@ export class NotificationService {
     return true;
   }
 
-  markAllAsRead(userId: string): void {
+  markAllAsRead(userId: string = 'ADMIN'): void {
     const notifications = this.getNotificationsFromStorage();
     notifications.forEach(n => {
-      if (n.userId === userId) {
+      if (userId === 'ADMIN' || userId === 'admin') {
+        if (n.recipientRole === 'ADMIN' || n.targetRole === 'ADMIN' || n.userId === 'ADMIN' || n.userId === 'admin') {
+          n.read = true;
+        }
+      } else if (n.userId === userId || n.targetUserId === userId) {
         n.read = true;
       }
     });
@@ -93,20 +117,35 @@ export class NotificationService {
 
   clearAllNotifications(userId: string): void {
     const notifications = this.getNotificationsFromStorage()
-      .filter(n => n.userId !== userId);
+      .filter(n => {
+        if (userId === 'ADMIN' || userId === 'admin') {
+          return !(n.recipientRole === 'ADMIN' || n.targetRole === 'ADMIN' || n.userId === 'ADMIN');
+        }
+        return n.userId !== userId;
+      });
 
     localStorage.setItem('urbanclean_notifications', JSON.stringify(notifications));
     this.notificationsSubject.next(notifications);
   }
 
-  private getNotificationsFromStorage(): Notification[] {
+  public refresh(): void {
+    this.notificationsSubject.next(this.getNotificationsFromStorage());
+  }
+
+  public getNotificationsFromStorage(): Notification[] {
     const stored = localStorage.getItem('urbanclean_notifications');
     if (stored) {
-      const data = JSON.parse(stored);
-      return data.map((n: any) => ({
-        ...n,
-        createdAt: new Date(n.createdAt)
-      }));
+      try {
+        const data = JSON.parse(stored);
+        if (Array.isArray(data)) {
+          return data.map((n: any) => ({
+            ...n,
+            createdAt: new Date(n.createdAt)
+          }));
+        }
+      } catch {
+        return [];
+      }
     }
     return [];
   }

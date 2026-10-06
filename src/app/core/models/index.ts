@@ -4,6 +4,8 @@ export type NotificationType = 'request-submitted' | 'collector-assigned' | 'req
 export interface Notification {
   id: string;
   userId: string;
+  targetRole?: 'ADMIN' | 'NORMAL_USER' | 'ALL';
+  recipientRole?: 'ADMIN' | 'NORMAL_USER' | 'ALL';
   type: NotificationType;
   title: string;
   message: string;
@@ -11,6 +13,8 @@ export interface Notification {
   createdAt: Date;
   actionUrl?: string;
   requestId?: string;
+  targetUserId?: string;
+  userName?: string;
 }
 
 export interface RewardTransaction {
@@ -36,6 +40,8 @@ export interface UserRewards {
   currentMonthPoints: number;
 }
 
+export * from './reward.model';
+
 export interface Reward {
   id: string;
   name: string;
@@ -44,6 +50,7 @@ export interface Reward {
   maxRedemptions?: number;
   expiryDate?: Date;
   category: string;
+  status?: 'Active' | 'Inactive';
 }
 
 export interface Analytics {

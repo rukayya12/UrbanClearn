@@ -1,0 +1,134 @@
+<div class="user-rewards-container">
+  <!-- Header -->
+  <header class="page-header">
+    <div class="header-left">
+      <div class="header-badge">
+        <span class="badge-icon">🌿</span>
+        <span>Eco Rewards Catalog</span>
+      </div>
+      <h1 class="page-title">Green Rewards & Points</h1>
+      <p class="page-subtitle">Redeem your earned Green Points for sustainable vouchers, services, and eco initiatives</p>
+    </div>
+  </header>
+
+  <!-- Toast Notification Alert -->
+  <div *ngIf="toastMessage" class="toast-banner" [ngClass]="'toast-' + toastType">
+    <span class="toast-icon">{{ toastType === 'success' ? '🎉' : '⚠️' }}</span>
+    <span class="toast-text">{{ toastMessage }}</span>
+    <button type="button" class="btn-close-toast" (click)="toastMessage = ''">✕</button>
+  </div>
+
+  <!-- User Points Overview Banner -->
+  <section class="points-hero-card">
+    <div class="hero-left">
+      <div class="points-avatar">🏆</div>
+      <div class="hero-text">
+        <span class="user-greeting">Hi, {{ userName || 'Eco Champion' }}</span>
+        <div class="points-display">
+          <h2 class="points-value">{{ currentPoints }}</h2>
+          <span class="points-unit">Green Points</span>
+        </div>
+        <p class="points-hint">Earn +10 to +15 Green Points for each completed waste collection request.</p>
+      </div>
+    </div>
+
+    <div class="hero-right">
+      <div class="tier-badge" [ngClass]="'tier-' + userTier">
+        <span class="tier-icon">🎖️</span>
+        <span class="tier-name">{{ userTier | titlecase }} Tier</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Rewards Catalog Grid -->
+  <section class="catalog-section">
+    <div class="section-header">
+      <h2>Available Eco Rewards</h2>
+      <span class="available-count">{{ activeRewards.length }} rewards available</span>
+    </div>
+
+    <div *ngIf="activeRewards.length > 0; else noRewards" class="rewards-grid">
+      <div *ngFor="let reward of activeRewards" class="reward-card" [class.can-redeem]="canAfford(reward)">
+        <div class="card-header">
+          <span class="card-category">{{ reward.category || 'Eco Reward' }}</span>
+          <span class="card-id">{{ reward.id }}</span>
+        </div>
+
+        <h3 class="card-title">{{ reward.name }}</h3>
+        <p class="card-desc">{{ reward.description }}</p>
+
+        <div class="points-requirement">
+          <span class="cost-label">Cost</span>
+          <span class="cost-val">🌿 {{ reward.pointsRequired }} pts</span>
+        </div>
+
+        <!-- Progress towards reward -->
+        <div class="progress-bar-wrapper">
+          <div class="progress-labels">
+            <span>Progress</span>
+            <span>{{ getProgressPercent(reward) }}%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" [style.width.%]="getProgressPercent(reward)"></div>
+          </div>
+        </div>
+
+        <button 
+          type="button" 
+          class="btn-redeem"
+          [disabled]="!canAfford(reward)"
+          (click)="openRedeemModal(reward)"
+        >
+          <span *ngIf="canAfford(reward)">🎁 Redeem Now</span>
+          <span *ngIf="!canAfford(reward)">🔒 Need {{ reward.pointsRequired - currentPoints }} more pts</span>
+        </button>
+      </div>
+    </div>
+
+    <ng-template #noRewards>
+      <div class="empty-catalog">
+        <span class="empty-icon">📭</span>
+        <h3>No rewards available at the moment</h3>
+        <p>Check back soon for new eco incentives and vouchers!</p>
+      </div>
+    </ng-template>
+  </section>
+
+  <!-- Redemption History Section -->
+  <section class="history-section" *ngIf="userRewards?.redeemHistory?.length">
+    <div class="section-header">
+      <h2>My Redemptions</h2>
+    </div>
+
+    <div class="history-list">
+      <div *ngFor="let item of userRewards?.redeemHistory" class="history-card">
+        <div class="history-icon">🎁</div>
+        <div class="history-info">
+          <h4>{{ item.rewardName }}</h4>
+          <span class="history-date">{{ item.redeemDate | date:'mediumDate' }}</span>
+        </div>
+        <div class="history-points">
+          -{{ item.redeemedPoints }} pts
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Redeem Confirmation Modal -->
+  <div *ngIf="showRedeemModal && selectedRewardForRedeem" class="modal-backdrop" (click)="closeRedeemModal()">
+    <div class="modal-card" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Confirm Reward Redemption</h3>
+        <button type="button" class="btn-close" (click)="closeRedeemModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to redeem <strong>{{ selectedRewardForRedeem.name }}</strong> for <strong>{{ selectedRewardForRedeem.pointsRequired }} Green Points</strong>?</p>
+        <p class="balance-note">Your remaining balance after redemption will be <strong>{{ currentPoints - selectedRewardForRedeem.pointsRequired }} Green Points</strong>.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-cancel" (click)="closeRedeemModal()">Cancel</button>
+        <button type="button" class="btn-confirm" (click)="confirmRedeem()">Confirm & Redeem</button>
+      </div>
+    </div>
+  </div>
+</div>

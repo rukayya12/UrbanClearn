@@ -1,7 +1,7 @@
 .sidebar {
   width: 250px;
   height: 100vh;
-  background: linear-gradient(180deg, #2c3e50 0%, #34495e 100%);
+  background: #15803D;
   color: white;
   display: flex;
   flex-direction: column;
@@ -10,70 +10,99 @@
   left: 0;
   top: 0;
   z-index: 1000;
-  transition: width 0.3s ease;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  transition: width 0.25s ease;
 
   &.collapsed {
     width: 70px;
 
-    .logo {
-      font-size: 24px;
+    .sidebar-header {
+      justify-content: center;
+      padding: 14px 0;
     }
 
-    h1 {
-      display: none;
+    .nav-item .nav-link {
+      justify-content: center;
+      padding: 11px 0;
+      gap: 0;
+
+      .icon {
+        margin: 0;
+        font-size: 20px;
+      }
     }
 
-    .toggle-btn {
-      position: static;
+    .sidebar-footer {
+      padding: 12px 10px;
+
+      .logout-btn {
+        justify-content: center;
+        padding: 9px 0;
+        gap: 0;
+
+        .icon {
+          font-size: 18px;
+        }
+      }
     }
   }
 
   .sidebar-header {
-    padding: 20px;
+    padding: 14px 20px;
     display: flex;
     align-items: center;
-    gap: 12px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    position: relative;
+    flex-shrink: 0;
+    height: 48px;
 
-    .logo {
-      font-size: 32px;
-      transition: font-size 0.3s ease;
-    }
-
-    h1 {
+    .sidebar-title {
       margin: 0;
-      font-size: 20px;
+      font-size: 13px;
       font-weight: 700;
-      letter-spacing: 1px;
-      flex: 1;
+      letter-spacing: 2px;
+      color: rgba(255, 255, 255, 0.9);
+      text-transform: uppercase;
     }
 
-    .toggle-btn {
-      background: none;
-      border: none;
-      color: white;
-      font-size: 20px;
-      cursor: pointer;
-      padding: 5px;
-      border-radius: 4px;
-      transition: background 0.3s ease;
-
-      &:hover {
-        background: rgba(255, 255, 255, 0.1);
-      }
+    .collapsed-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.9);
     }
   }
 
   .sidebar-nav {
     flex: 1;
     overflow-y: auto;
-    padding: 15px 0;
+    overflow-x: hidden;
+    padding: 8px 0;
+
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+
+    &::-webkit-scrollbar {
+      width: 4px;
+    }
+    &::-webkit-scrollbar-track {
+      background: transparent !important;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2) !important;
+      border-radius: 4px;
+
+      &:hover {
+        background: rgba(255, 255, 255, 0.4) !important;
+      }
+    }
 
     .nav-items {
       list-style: none;
       margin: 0;
       padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
     }
 
     .nav-item {
@@ -82,35 +111,65 @@
       .nav-link {
         display: flex;
         align-items: center;
-        gap: 15px;
-        padding: 12px 20px;
-        color: rgba(255, 255, 255, 0.7);
+        gap: 12px;
+        padding: 9px 20px;
+        color: rgba(255, 255, 255, 0.85);
         text-decoration: none;
-        transition: all 0.3s ease;
+        transition: all 0.2s ease;
         border-left: 3px solid transparent;
         cursor: pointer;
+        font-size: 14px;
+        line-height: 1.3;
 
         &:hover {
-          background: rgba(255, 255, 255, 0.05);
-          color: white;
+          background: rgba(255, 255, 255, 0.08);
+          color: #FFFFFF;
         }
 
         &.active {
-          background: rgba(102, 126, 234, 0.2);
-          color: #67d5ff;
-          border-left-color: #67d5ff;
+          background: rgba(34, 197, 94, 0.24);
+          color: #FFFFFF;
+          border-left-color: #22C55E;
           font-weight: 600;
         }
 
         .icon {
-          font-size: 20px;
-          min-width: 20px;
+          font-size: 18px;
+          min-width: 22px;
           text-align: center;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .label {
           flex: 1;
-          font-size: 14px;
+          font-size: 13.5px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .nav-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          background: #EF4444;
+          color: #FFFFFF;
+          font-size: 11px;
+          font-weight: 700;
+          min-width: 20px;
+          height: 20px;
+          padding: 0 6px;
+          border-radius: 10px;
+          margin-left: auto;
+          line-height: 1;
+          transition: all 0.2s ease;
+
+          &.badge-zero {
+            background: rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.85);
+          }
         }
       }
     }
@@ -118,30 +177,32 @@
 
   .sidebar-footer {
     border-top: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 15px 20px;
+    padding: 12px 20px;
+    flex-shrink: 0;
+    background: #15803D;
 
     .logout-btn {
       width: 100%;
       display: flex;
       align-items: center;
-      gap: 15px;
-      padding: 12px;
-      background: rgba(231, 76, 60, 0.1);
-      color: #ecf0f1;
-      border: 1px solid rgba(231, 76, 60, 0.3);
+      gap: 12px;
+      padding: 9px 14px;
+      background: rgba(231, 76, 60, 0.15);
+      color: #FFFFFF;
+      border: 1px solid rgba(231, 76, 60, 0.35);
       border-radius: 6px;
       cursor: pointer;
-      transition: all 0.3s ease;
-      font-size: 14px;
+      transition: all 0.2s ease;
+      font-size: 13.5px;
       font-weight: 600;
 
       .icon {
-        font-size: 18px;
+        font-size: 16px;
       }
 
       &:hover {
-        background: rgba(231, 76, 60, 0.2);
-        border-color: rgba(231, 76, 60, 0.5);
+        background: rgba(231, 76, 60, 0.25);
+        border-color: rgba(231, 76, 60, 0.6);
       }
     }
   }
@@ -149,16 +210,31 @@
   @media (max-width: 768px) {
     width: 70px;
 
-    .sidebar-header h1 {
+    .sidebar-header {
+      justify-content: center;
+      padding: 14px 0;
+    }
+
+    .sidebar-header .sidebar-title {
       display: none;
     }
 
-    .sidebar-nav .nav-link .label {
-      display: none;
+    .sidebar-nav .nav-link {
+      justify-content: center;
+      padding: 11px 0;
+
+      .label {
+        display: none;
+      }
     }
 
-    .sidebar-footer .logout-btn span:not(.icon) {
-      display: none;
+    .sidebar-footer .logout-btn {
+      justify-content: center;
+      padding: 10px 0;
+
+      span:not(.icon) {
+        display: none;
+      }
     }
   }
 }

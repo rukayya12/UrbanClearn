@@ -1,0 +1,288 @@
+<div class="map-page-container">
+  <!-- Page Header -->
+  <header class="page-header">
+    <div class="header-left">
+      <div class="header-badge">
+        <span class="badge-icon">🗺️</span>
+        <span>Zanzibar Geographic Overview</span>
+      </div>
+      <h1 class="page-title">Waste Collection Map</h1>
+      <p class="page-subtitle">Interactive map centered in Zanzibar, Tanzania for waste collection requests and user locations</p>
+    </div>
+
+    <div class="header-actions">
+      <button type="button" class="btn-reset-view" (click)="resetView()" title="Reset map view to Zanzibar center">
+        <span>🔄</span> Reset to Zanzibar
+      </button>
+    </div>
+  </header>
+
+  <!-- Controls Card: Search & Filters -->
+  <section class="controls-card">
+    <!-- Top Search Box for Places and Entities -->
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input 
+        type="text" 
+        [(ngModel)]="searchTerm" 
+        (input)="onSearchChange()" 
+        (keyup.enter)="onSearchChange()"
+        placeholder="Search city or place in Zanzibar (e.g. Zanzibar City, Stone Town, Nungwi, Paje) or Request ID, User..." 
+        aria-label="Search city or place in Zanzibar or map markers"
+        class="search-input"
+      />
+      <button *ngIf="searchTerm" type="button" class="btn-clear-search" (click)="clearSearch()" title="Clear search">✕</button>
+    </div>
+
+    <!-- Quick Zanzibar Place Suggestions -->
+    <div class="quick-places-row">
+      <span class="quick-label">Quick Places:</span>
+      <div class="quick-chips">
+        <button 
+          *ngFor="let place of popularPlaces" 
+          type="button" 
+          class="quick-chip"
+          [class.active]="searchTerm.toLowerCase() === place.toLowerCase() || (searchedPlace && searchedPlace.name === place)"
+          (click)="selectPlace(place)"
+        >
+          📍 {{ place }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Filter Buttons -->
+    <div class="filters-row">
+      <!-- Entity Filter -->
+      <div class="filter-group">
+        <span class="filter-label">Show:</span>
+        <div class="filter-pills">
+          <button 
+            type="button" 
+            class="pill-btn" 
+            [class.active]="entityFilter === 'ALL'"
+            (click)="setEntityFilter('ALL')"
+          >
+            All ({{ requests.length + users.length }})
+          </button>
+          <button 
+            type="button" 
+            class="pill-btn" 
+            [class.active]="entityFilter === 'REQUESTS'"
+            (click)="setEntityFilter('REQUESTS')"
+          >
+            Requests ({{ requests.length }})
+          </button>
+          <button 
+            type="button" 
+            class="pill-btn" 
+            [class.active]="entityFilter === 'USERS'"
+            (click)="setEntityFilter('USERS')"
+          >
+            Users ({{ users.length }})
+          </button>
+        </div>
+      </div>
+
+      <!-- Status Filter (for requests) -->
+      <div class="filter-group" *ngIf="entityFilter !== 'USERS'">
+        <span class="filter-label">Status:</span>
+        <div class="filter-pills">
+          <button 
+            type="button" 
+            class="pill-btn" 
+            [class.active]="statusFilter === 'ALL'"
+            (click)="setStatusFilter('ALL')"
+          >
+            All Status
+          </button>
+          <button 
+            type="button" 
+            class="pill-btn status-pending" 
+            [class.active]="statusFilter === 'PENDING'"
+            (click)="setStatusFilter('PENDING')"
+          >
+            Pending
+          </button>
+          <button 
+            type="button" 
+            class="pill-btn status-accepted" 
+            [class.active]="statusFilter === 'ACCEPTED'"
+            (click)="setStatusFilter('ACCEPTED')"
+          >
+            Accepted
+          </button>
+          <button 
+            type="button" 
+            class="pill-btn status-completed" 
+            [class.active]="statusFilter === 'COMPLETED'"
+            (click)="setStatusFilter('COMPLETED')"
+          >
+            Completed
+          </button>
+          <button 
+            type="button" 
+            class="pill-btn status-rejected" 
+            [class.active]="statusFilter === 'REJECTED'"
+            (click)="setStatusFilter('REJECTED')"
+          >
+            Rejected
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Searched Place Found Banner -->
+  <div *ngIf="searchedPlace" class="searched-place-banner">
+    <span class="banner-icon">📍</span>
+    <div class="banner-text">
+      <span class="place-title">Searched Place: <strong>{{ searchedPlace.name }}</strong> ({{ searchedPlace.category }})</span>
+      <span class="place-desc">{{ searchedPlace.description }} &bull; Coordinates: {{ searchedPlace.lat | number:'1.4-4' }}, {{ searchedPlace.lng | number:'1.4-4' }}</span>
+    </div>
+    <button type="button" class="btn-clear-inline" (click)="clearSearch()">✕ Clear Search</button>
+  </div>
+
+  <!-- Empty Search / No Location Result Banner -->
+  <div *ngIf="noLocationsFound || noLocationFound" class="no-locations-alert">
+    <span class="alert-icon">⚠️</span>
+    <span class="alert-msg">No location found</span>
+    <button *ngIf="searchTerm" type="button" class="btn-clear-inline" (click)="clearSearch()">Reset Search</button>
+  </div>
+
+  <!-- Map Layout (Map + Info Panel) -->
+  <div class="map-layout">
+    <!-- Interactive Leaflet Map -->
+    <div class="map-wrapper">
+      <div id="leaflet-map" #mapContainer class="leaflet-map-canvas"></div>
+
+      <!-- Map Legend Overlay -->
+      <div class="map-legend">
+        <h4 class="legend-title">Map Legend</h4>
+        <div class="legend-items">
+          <div class="legend-item" *ngIf="searchedPlace">
+            <span class="legend-dot dot-search"></span>
+            <span>Searched Place</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot dot-user"></span>
+            <span>User Location</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot dot-pending"></span>
+            <span>Pending Request</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot dot-accepted"></span>
+            <span>Accepted Request</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot dot-completed"></span>
+            <span>Completed Request</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot dot-rejected"></span>
+            <span>Rejected Request</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Details Sidebar (shows details when marker is clicked) -->
+    <aside class="details-panel" *ngIf="selectedItem">
+      <div class="panel-header">
+        <h3>Location Details</h3>
+        <button type="button" class="btn-close-panel" (click)="selectedItem = null">&times;</button>
+      </div>
+
+      <!-- Searched Place Details Card -->
+      <div class="panel-content" *ngIf="selectedItem.type === 'place'">
+        <div class="card-badge tag-place">Searched Place</div>
+        <div class="info-group">
+          <label>Place Name</label>
+          <p class="font-bold highlight">{{ selectedItem.data.name }}</p>
+        </div>
+        <div class="info-group">
+          <label>Category</label>
+          <p>{{ selectedItem.data.category }}</p>
+        </div>
+        <div class="info-group">
+          <label>Region</label>
+          <p>Zanzibar, Tanzania</p>
+        </div>
+        <div class="info-group">
+          <label>Coordinates</label>
+          <p class="font-mono">{{ selectedItem.data.lat | number:'1.4-4' }}, {{ selectedItem.data.lng | number:'1.4-4' }}</p>
+        </div>
+        <div class="info-group">
+          <label>Description</label>
+          <p>{{ selectedItem.data.description }}</p>
+        </div>
+      </div>
+
+      <!-- Request Details Card -->
+      <div class="panel-content" *ngIf="selectedItem.type === 'request'">
+        <div class="card-badge tag-request">Collection Request</div>
+        <div class="info-group">
+          <label>Request ID</label>
+          <p class="font-mono font-bold">{{ selectedItem.data.id }}</p>
+        </div>
+        <div class="info-group">
+          <label>User ID</label>
+          <p class="font-mono">{{ selectedItem.data.userId }}</p>
+        </div>
+        <div class="info-group">
+          <label>User Name</label>
+          <p class="font-bold">{{ selectedItem.data.userName || 'Normal User' }}</p>
+        </div>
+        <div class="info-group">
+          <label>Waste Type</label>
+          <p>{{ (selectedItem.data.wasteTypes || []).join(', ') }}</p>
+        </div>
+        <div class="info-group">
+          <label>Status</label>
+          <span class="status-pill" [ngClass]="'status-' + (selectedItem.data.status | lowercase)">
+            {{ selectedItem.data.status | titlecase }}
+          </span>
+        </div>
+        <div class="info-group">
+          <label>Scheduled Date</label>
+          <p>{{ selectedItem.data.requestedTime | date:'dd/MM/yyyy • shortTime' }}</p>
+        </div>
+        <div class="info-group">
+          <label>Location</label>
+          <p *ngIf="hasValidLocation(selectedItem.data)">📍 {{ selectedItem.data.location.address }}</p>
+          <p *ngIf="!hasValidLocation(selectedItem.data)" class="text-danger">⚠️ No location found</p>
+        </div>
+      </div>
+
+      <!-- User Details Card -->
+      <div class="panel-content" *ngIf="selectedItem.type === 'user'">
+        <div class="card-badge tag-user">Registered User</div>
+        <div class="info-group">
+          <label>User ID</label>
+          <p class="font-mono font-bold">{{ selectedItem.data.id }}</p>
+        </div>
+        <div class="info-group">
+          <label>Full Name</label>
+          <p class="font-bold">{{ selectedItem.data.fullName }}</p>
+        </div>
+        <div class="info-group">
+          <label>Email</label>
+          <p>{{ selectedItem.data.email }}</p>
+        </div>
+        <div class="info-group">
+          <label>Status</label>
+          <span class="status-pill" [ngClass]="selectedItem.data.isActive ? 'status-active' : 'status-inactive'">
+            {{ selectedItem.data.isActive ? 'Active' : 'Inactive' }}
+          </span>
+        </div>
+        <div class="info-group">
+          <label>Location</label>
+          <p *ngIf="hasValidLocation(selectedItem.data)">📍 {{ selectedItem.data.location.address }}</p>
+          <p *ngIf="!hasValidLocation(selectedItem.data)" class="text-danger">⚠️ No location found</p>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+

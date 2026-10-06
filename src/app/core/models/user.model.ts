@@ -1,4 +1,4 @@
-export type UserRole = 'super-admin' | 'admin' | 'normal-user' | 'collector' | 'recycling-centre';
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'NORMAL_USER' | 'COLLECTOR' | 'RECYCLING_CENTRE';
 
 export interface Location {
   latitude: number;
@@ -12,6 +12,7 @@ export interface Location {
 export interface User {
   id: string;
   fullName: string;
+  username?: string;
   email: string;
   phone: string;
   password: string; // Mock only - never store in production
@@ -20,6 +21,8 @@ export interface User {
   createdAt: Date;
   updatedAt: Date;
   isActive: boolean;
+  lastLogin?: Date;
+  isOnline?: boolean;
   profileImage?: string;
   bio?: string;
 }
@@ -52,3 +55,26 @@ export interface AuthSession {
   loginTime: Date;
   lastActivityTime: Date;
 }
+
+/**
+ * Generates the next sequential User ID: USER01, USER02, USER03, ...
+ * Every newly registered user automatically receives the next sequential ID.
+ */
+export function generateNextUserId(existingUsers: { id?: string; role?: string }[] = []): string {
+  const userIds = existingUsers
+    .map(u => u.id || '')
+    .filter(id => /^USER\d+$/i.test(id));
+
+  let maxNum = 0;
+  for (const id of userIds) {
+    const num = parseInt(id.replace(/^USER/i, ''), 10);
+    if (!isNaN(num) && num > maxNum) {
+      maxNum = num;
+    }
+  }
+
+  const nextNum = maxNum + 1;
+  const padded = nextNum < 10 ? `0${nextNum}` : `${nextNum}`;
+  return `USER${padded}`;
+}
+

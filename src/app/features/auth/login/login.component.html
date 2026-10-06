@@ -8,7 +8,10 @@
     <form [formGroup]="loginForm" (ngSubmit)="login()" class="login-form">
       <!-- Error Message -->
       <div *ngIf="errorMessage" class="alert alert-error">
-        {{ errorMessage }}
+        <p class="error-msg-text">{{ errorMessage }}</p>
+        <div *ngIf="isNotRegistered" class="unregistered-action">
+          <a routerLink="/register" class="btn-register-inline">Register</a>
+        </div>
       </div>
 
       <!-- Success Message -->
@@ -18,7 +21,7 @@
 
       <!-- Email Field -->
       <div class="form-group">
-        <label for="email">Email Address</label>
+        <label for="email">Email</label>
         <input
           type="email"
           id="email"
@@ -27,8 +30,11 @@
           class="form-control"
           [class.is-invalid]="loginForm.get('email')?.invalid && loginForm.get('email')?.touched"
         />
-        <small *ngIf="loginForm.get('email')?.invalid && loginForm.get('email')?.touched" class="error-text">
-          Please enter a valid email
+        <small *ngIf="loginForm.get('email')?.hasError('required') && loginForm.get('email')?.touched" class="error-text">
+          Email is required.
+        </small>
+        <small *ngIf="loginForm.get('email')?.hasError('email') && loginForm.get('email')?.touched" class="error-text">
+          Please enter a valid email address.
         </small>
       </div>
 
@@ -49,57 +55,30 @@
             class="password-toggle"
             (click)="togglePasswordVisibility()"
             title="Toggle password visibility"
+            aria-label="Toggle password visibility"
           >
             {{ showPassword ? '👁️' : '🔒' }}
           </button>
         </div>
-        <small *ngIf="loginForm.get('password')?.invalid && loginForm.get('password')?.touched" class="error-text">
-          Password must be at least 6 characters
+        <small *ngIf="loginForm.get('password')?.hasError('required') && loginForm.get('password')?.touched" class="error-text">
+          Password is required.
         </small>
-      </div>
-
-      <!-- Remember Me -->
-      <div class="form-group checkbox">
-        <input type="checkbox" id="rememberMe" formControlName="rememberMe" />
-        <label for="rememberMe">Remember me</label>
       </div>
 
       <!-- Login Button -->
       <button
         type="submit"
         class="btn btn-primary btn-block"
-        [disabled]="loginForm.invalid || loading"
+        [disabled]="loading"
       >
         {{ loading ? 'Logging in...' : 'Login' }}
       </button>
     </form>
 
-    <!-- Demo Accounts Section -->
-    <div class="demo-section">
-      <p>Demo Accounts (for testing):</p>
-      <div class="demo-buttons">
-        <button type="button" class="demo-btn" (click)="fillDemoAccount('super-admin')">
-          Super Admin
-        </button>
-        <button type="button" class="demo-btn" (click)="fillDemoAccount('admin')">
-          Admin
-        </button>
-        <button type="button" class="demo-btn" (click)="fillDemoAccount('user')">
-          User
-        </button>
-        <button type="button" class="demo-btn" (click)="fillDemoAccount('collector')">
-          Collector
-        </button>
-        <button type="button" class="demo-btn" (click)="fillDemoAccount('centre')">
-          Centre
-        </button>
-      </div>
-    </div>
-
-    <!-- Footer -->
+    <!-- Register Option -->
     <div class="login-footer">
-      <p>Don't have an account? <a href="javascript:void(0)" (click)="goToRegister()">Register here</a></p>
-      <p><a href="javascript:void(0)">Forgot your password?</a></p>
+      <p class="register-prompt">Don't have an account?</p>
+      <a routerLink="/register" class="register-link">Register</a>
     </div>
   </div>
 </div>
