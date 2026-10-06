@@ -17,42 +17,6 @@ export interface Notification {
   userName?: string;
 }
 
-export interface RewardTransaction {
-  id: string;
-  userId: string;
-  points: number;
-  type: 'earn' | 'redeem' | 'penalty';
-  description: string;
-  createdAt: Date;
-  expiryDate?: Date;
-}
-
-export interface UserRewards {
-  userId: string;
-  totalPoints: number;
-  transactionHistory: RewardTransaction[];
-  redeemHistory: {
-    redeemedPoints: number;
-    rewardName: string;
-    redeemDate: Date;
-  }[];
-  tier: 'bronze' | 'silver' | 'gold' | 'platinum';
-  currentMonthPoints: number;
-}
-
-export * from './reward.model';
-
-export interface Reward {
-  id: string;
-  name: string;
-  description: string;
-  pointsRequired: number;
-  maxRedemptions?: number;
-  expiryDate?: Date;
-  category: string;
-  status?: 'Active' | 'Inactive';
-}
-
 export interface Analytics {
   totalRequests: number;
   completedRequests: number;

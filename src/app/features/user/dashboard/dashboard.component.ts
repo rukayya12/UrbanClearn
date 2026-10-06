@@ -5,7 +5,6 @@ import { Router, RouterLink } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { RequestService } from '../../../core/services/request.service';
-import { RewardService } from '../../../core/services/reward.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { WasteRequest } from '../../../core/models/request.model';
 import { User } from '../../../core/models/user.model';
@@ -33,7 +32,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   constructor(
     private authService: AuthService,
     private requestService: RequestService,
-    private rewardService: RewardService,
     private notificationService: NotificationService,
     private router: Router
   ) {}
@@ -65,12 +63,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
       })
     );
 
-    // 5. React to rewards changes
-    this.subscriptions.add(
-      this.rewardService.rewards$.subscribe(() => {
-        this.loadDashboardData();
-      })
-    );
   }
 
   ngOnDestroy(): void {
@@ -98,12 +90,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.completedRequests = userRequests.filter(r => r.status === 'completed').length;
     this.recentRequests = userRequests.slice(0, 5);
 
-    // Calculate dynamic reward points from rewards service + user's completed requests
-    const userRewards = this.rewardService.getUserRewards(this.currentUser.id);
     const completedPoints = userRequests
       .filter(r => r.status === 'completed')
       .reduce((sum, r) => sum + (r.greenPoints || 0), 0);
-    this.greenPoints = Math.max(userRewards?.totalPoints || 0, completedPoints);
+    this.greenPoints = completedPoints;
     this.ecoPoints = this.greenPoints;
 
     // Get notifications for this logged-in user

@@ -34,19 +34,23 @@ export interface StatusChange {
   notes?: string;
 }
 
+export type WasteReportType =
+  | 'Uncollected Waste'
+  | 'Overflowing Waste'
+  | 'Illegal Dumping'
+  | 'Waste Collection Problem'
+  | 'Other';
+
+export type WasteReportStatus = 'Pending' | 'In Progress' | 'Resolved' | 'Rejected';
+
 export interface WasteReport {
   id: string;
   reporterId: string;
   reporterName: string;
+  reportType: WasteReportType;
   description: string;
-  priority: RequestPriority;
-  location: {
-    latitude: number;
-    longitude: number;
-    address: string;
-  };
-  imageUrl?: string;
-  status: 'pending' | 'under-review' | 'resolved';
+  location: string;
+  status: WasteReportStatus;
   createdAt: Date;
   resolvedAt?: Date;
 }

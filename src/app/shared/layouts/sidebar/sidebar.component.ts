@@ -59,14 +59,22 @@ export class SidebarComponent implements OnInit, OnDestroy {
   private loadMenuItems(): void {
     switch (this.userRole) {
       case 'SUPER_ADMIN':
-      case 'ADMIN':
         this.menuItems = [
           { label: 'Dashboard', route: '/admin/dashboard', icon: '📊' },
           { label: 'Users', route: '/admin/users', icon: '👥' },
           { label: 'Requests', route: '/admin/requests', icon: '📋' },
           { label: 'Map', route: '/admin/map', icon: '🗺️' },
-          { label: 'Rewards', route: '/admin/rewards', icon: '🏆' },
           { label: 'Reports', route: '/admin/reports', icon: '🚨' },
+          { label: 'Notifications', route: '/admin/notifications', icon: '🔔' },
+          { label: 'Profile', route: '/admin/profile', icon: '👤' }
+        ];
+        break;
+      case 'ADMIN':
+        this.menuItems = [
+          { label: 'Dashboard', route: '/admin/dashboard', icon: '📊' },
+          { label: 'Requests', route: '/admin/requests', icon: '📋' },
+          { label: 'Report', route: '/admin/reports', icon: '🚨' },
+          { label: 'Map', route: '/admin/map', icon: '🗺️' },
           { label: 'Notifications', route: '/admin/notifications', icon: '🔔' },
           { label: 'Profile', route: '/admin/profile', icon: '👤' }
         ];
@@ -74,8 +82,9 @@ export class SidebarComponent implements OnInit, OnDestroy {
       case 'NORMAL_USER':
         this.menuItems = [
           { label: 'Dashboard', route: '/user/dashboard', icon: '🏠' },
-          { label: 'Collection', route: '/user/request', icon: '➕' },
+          { label: 'Request Collection', route: '/user/request', icon: '➕' },
           { label: 'My Requests', route: '/user/requests', icon: '📋' },
+          { label: 'Report', route: '/user/reports', icon: '🚨' },
           { label: 'Notifications', route: '/user/notifications', icon: '🔔' },
           { label: 'Profile', route: '/user/profile', icon: '👤' }
         ];

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
-import { WasteReport, RequestPriority } from '../models/request.model';
+import { WasteReport, WasteReportStatus, WasteReportType } from '../models/request.model';
 
 @Injectable({
   providedIn: 'root'
@@ -9,38 +9,28 @@ export class ReportService {
   private reportsSubject = new BehaviorSubject<WasteReport[]>(this.getReportsFromStorage());
   public reports$ = this.reportsSubject.asObservable();
 
-  constructor() {}
-
   createReport(
     reporterId: string,
     reporterName: string,
+    reportType: WasteReportType,
     description: string,
-    priority: RequestPriority,
-    latitude: number,
-    longitude: number,
-    address: string,
-    imageUrl?: string
+    location: string,
+    reportDate: Date
   ): WasteReport {
+    const reports = this.getReportsFromStorage();
     const report: WasteReport = {
-      id: `report-${Date.now()}`,
+      id: this.generateNextReportId(reports),
       reporterId,
       reporterName,
+      reportType,
       description,
-      priority,
-      location: {
-        latitude,
-        longitude,
-        address
-      },
-      imageUrl,
-      status: 'pending',
-      createdAt: new Date()
+      location,
+      status: 'Pending',
+      createdAt: reportDate
     };
 
-    const reports = this.getReportsFromStorage();
     reports.push(report);
-    localStorage.setItem('urbanclean_reports', JSON.stringify(reports));
-    this.reportsSubject.next(reports);
+    this.saveReports(reports);
 
     return report;
   }
@@ -55,81 +45,86 @@ export class ReportService {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
-  getReportsByStatus(status: string): WasteReport[] {
-    return this.getReportsFromStorage().filter(r => r.status === status);
-  }
-
-  getReportsByPriority(priority: RequestPriority): WasteReport[] {
-    return this.getReportsFromStorage().filter(r => r.priority === priority);
-  }
-
-  updateReportStatus(reportId: string, status: 'pending' | 'under-review' | 'resolved'): boolean {
+  updateReportStatus(reportId: string, status: WasteReportStatus): boolean {
     const reports = this.getReportsFromStorage();
     const report = reports.find(r => r.id === reportId);
 
-    if (!report) {
+    if (!report || !this.canTransitionStatus(report.status, status)) {
       return false;
     }
 
     report.status = status;
-    if (status === 'resolved') {
+    if (status === 'Resolved') {
       report.resolvedAt = new Date();
     }
 
-    localStorage.setItem('urbanclean_reports', JSON.stringify(reports));
-    this.reportsSubject.next(reports);
+    this.saveReports(reports);
 
     return true;
   }
 
   getAllReports(): WasteReport[] {
-    return this.getReportsFromStorage();
+    return this.getReportsFromStorage()
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
-  getStats(): {
-    total: number;
-    pending: number;
-    underReview: number;
-    resolved: number;
-    criticalCount: number;
-    highCount: number;
-  } {
-    const reports = this.getReportsFromStorage();
-    return {
-      total: reports.length,
-      pending: reports.filter(r => r.status === 'pending').length,
-      underReview: reports.filter(r => r.status === 'under-review').length,
-      resolved: reports.filter(r => r.status === 'resolved').length,
-      criticalCount: reports.filter(r => r.priority === 'critical').length,
-      highCount: reports.filter(r => r.priority === 'high').length
-    };
+  refreshReports(): void {
+    this.reportsSubject.next(this.getReportsFromStorage());
   }
 
-  deleteReport(reportId: string): boolean {
-    const reports = this.getReportsFromStorage();
-    const index = reports.findIndex(r => r.id === reportId);
-
-    if (index === -1) {
-      return false;
-    }
-
-    reports.splice(index, 1);
+  private saveReports(reports: WasteReport[]): void {
     localStorage.setItem('urbanclean_reports', JSON.stringify(reports));
-    this.reportsSubject.next(reports);
+    this.reportsSubject.next([...reports]);
+  }
 
-    return true;
+  private generateNextReportId(reports: WasteReport[]): string {
+    const maxId = reports.reduce((max, report) => {
+      const match = /^REP(\d+)$/i.exec(report.id);
+      return match ? Math.max(max, Number(match[1])) : max;
+    }, 0);
+    return `REP${String(maxId + 1).padStart(2, '0')}`;
+  }
+
+  private canTransitionStatus(current: WasteReportStatus, next: WasteReportStatus): boolean {
+    return (current === 'Pending' && (next === 'In Progress' || next === 'Rejected'))
+      || (current === 'In Progress' && next === 'Resolved');
   }
 
   private getReportsFromStorage(): WasteReport[] {
     const stored = localStorage.getItem('urbanclean_reports');
-    if (stored) {
-      const data = JSON.parse(stored);
-      return data.map((r: any) => ({
-        ...r,
-        createdAt: new Date(r.createdAt),
-        resolvedAt: r.resolvedAt ? new Date(r.resolvedAt) : undefined
-      }));
+    if (!stored) {
+      return [];
     }
-    return [];
+
+    try {
+      const data = JSON.parse(stored);
+      if (!Array.isArray(data)) return [];
+
+      return data.map((report: any): WasteReport => ({
+        ...report,
+        reportType: report.reportType || 'Other',
+        location: typeof report.location === 'string' ? report.location : report.location?.address || '',
+        status: this.normalizeStatus(report.status),
+        createdAt: new Date(report.createdAt || Date.now()),
+        resolvedAt: report.resolvedAt ? new Date(report.resolvedAt) : undefined
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  private normalizeStatus(status: string): WasteReportStatus {
+    switch (status?.toLowerCase()) {
+      case 'in progress':
+      case 'in-progress':
+      case 'under-review':
+        return 'In Progress';
+      case 'resolved':
+        return 'Resolved';
+      case 'rejected':
+        return 'Rejected';
+      default:
+        return 'Pending';
+    }
   }
 }

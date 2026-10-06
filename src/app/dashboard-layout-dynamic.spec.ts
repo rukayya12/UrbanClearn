@@ -3,7 +3,6 @@ import { describe, beforeEach, it, expect, vi } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from './core/services/auth.service';
 import { RequestService } from './core/services/request.service';
-import { RewardService } from './core/services/reward.service';
 import { NotificationService } from './core/services/notification.service';
 import { LocationService } from './core/services/location.service';
 import { UserService } from './core/services/user.service';
@@ -14,7 +13,6 @@ import { User } from './core/models/user.model';
 describe('Dashboard Layout & Dynamic Data Verification', () => {
   let authService: AuthService;
   let requestService: RequestService;
-  let rewardService: RewardService;
   let notificationService: NotificationService;
   let locationService: LocationService;
   let userService: UserService;
@@ -28,43 +26,42 @@ describe('Dashboard Layout & Dynamic Data Verification', () => {
     };
     authService = new AuthService();
     notificationService = new NotificationService();
-    rewardService = new RewardService(notificationService);
     locationService = new LocationService();
-    userService = new UserService(authService);
+    userService = new UserService();
     requestService = new RequestService(locationService, authService, userService, notificationService);
   });
 
   describe('PART 1 — Layout, Top Header & Sidebar Toggle', () => {
-    it('should include Collection and required items for NORMAL_USER', () => {
+    it('should include Request Collection and Report for NORMAL_USER', () => {
       const sidebar = new SidebarComponent(authService, mockRouter);
       (authService as any).currentUserSubject.next({ role: 'NORMAL_USER' } as User);
       sidebar.ngOnInit();
 
       const labels = sidebar.menuItems.map(i => i.label);
       expect(labels).toContain('Dashboard');
-      expect(labels).toContain('Collection');
+      expect(labels).toContain('Request Collection');
       expect(labels).toContain('My Requests');
+      expect(labels).toContain('Report');
       expect(labels).toContain('Notifications');
       expect(labels).toContain('Profile');
 
-      const collectionItem = sidebar.menuItems.find(i => i.label === 'Collection');
+      const collectionItem = sidebar.menuItems.find(i => i.label === 'Request Collection');
       expect(collectionItem?.route).toBe('/user/request');
     });
 
-    it('should preserve ADMIN menu with Dashboard, Users, Requests, Map, Rewards, Reports, Notifications, Profile', () => {
+    it('should show the requested ADMIN menu without Users', () => {
       const sidebar = new SidebarComponent(authService, mockRouter);
       (authService as any).currentUserSubject.next({ role: 'ADMIN' } as User);
       sidebar.ngOnInit();
 
       const routes = sidebar.menuItems.map(i => i.route);
       expect(routes).toContain('/admin/dashboard');
-      expect(routes).toContain('/admin/users');
       expect(routes).toContain('/admin/requests');
-      expect(routes).toContain('/admin/map');
-      expect(routes).toContain('/admin/rewards');
       expect(routes).toContain('/admin/reports');
+      expect(routes).toContain('/admin/map');
       expect(routes).toContain('/admin/notifications');
       expect(routes).toContain('/admin/profile');
+      expect(routes).not.toContain('/admin/users');
     });
   });
 
@@ -136,12 +133,14 @@ describe('Dashboard Layout & Dynamic Data Verification', () => {
       localStorage.setItem('urbanclean_requests', JSON.stringify([reqA1, reqA2, reqB1]));
       (requestService as any).requestsSubject.next([reqA1, reqA2, reqB1]);
 
-      const comp = new UserDashboardComponent(authService, requestService, rewardService, notificationService);
+      const comp = new UserDashboardComponent(authService, requestService, notificationService, mockRouter);
       comp.ngOnInit();
 
       expect(comp.totalRequests).toBe(2);
       expect(comp.pendingRequests).toBe(1);
       expect(comp.completedRequests).toBe(1);
+      expect(comp.greenPoints).toBe(40);
+      expect(comp.ecoPoints).toBe(40);
       expect(comp.recentRequests.length).toBe(2);
       expect(comp.recentRequests.some(r => r.userId === 'USER02')).toBe(false);
     });

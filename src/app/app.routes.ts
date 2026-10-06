@@ -49,7 +49,6 @@ export const routes: Routes = [
           { path: 'users', loadComponent: () => import('./features/admin/users/users.component').then(m => m.UsersComponent) },
           { path: 'requests', loadComponent: () => import('./features/admin/requests/requests.component').then(m => m.RequestsComponent) },
           { path: 'map', loadComponent: () => import('./features/admin/map/map.component').then(m => m.MapComponent) },
-          { path: 'rewards', loadComponent: () => import('./features/admin/rewards/rewards.component').then(m => m.RewardsComponent) },
           { path: 'reports', loadComponent: () => import('./features/admin/reports/reports.component').then(m => m.ReportsComponent) },
           { path: 'notifications', loadComponent: () => import('./features/admin/notifications/notifications.component').then(m => m.NotificationsComponent) },
           { path: 'profile', loadComponent: () => import('./features/profile/profile.component').then(m => m.ProfileComponent) },
@@ -64,7 +63,7 @@ export const routes: Routes = [
           { path: 'request', loadComponent: () => import('./features/user/request-create/request-create.component').then(m => m.RequestCreateComponent) },
           { path: 'requests', loadComponent: () => import('./features/user/requests/requests.component').then(m => m.RequestsComponent) },
           { path: 'my-requests', loadComponent: () => import('./features/user/requests/requests.component').then(m => m.RequestsComponent) },
-          { path: 'rewards', loadComponent: () => import('./features/user/rewards/user-rewards.component').then(m => m.UserRewardsComponent) },
+          { path: 'reports', loadComponent: () => import('./features/user/reports/reports.component').then(m => m.ReportsComponent) },
           { path: 'notifications', loadComponent: () => import('./features/notifications/notifications.component').then(m => m.NotificationsComponent) },
           { path: 'profile', loadComponent: () => import('./features/profile/profile.component').then(m => m.ProfileComponent) },
           { path: '', redirectTo: 'dashboard', pathMatch: 'full' }

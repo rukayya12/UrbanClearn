@@ -22,7 +22,7 @@ describe('UrbanClean — Role-Based Navigation and Route Protection', () => {
     authService = new AuthService();
   });
 
-  it('Step 1, 2 & 3: Normal User menu should ONLY contain Dashboard, Collection, My Requests, Notifications, Profile, Logout', async () => {
+  it('Step 1, 2 & 3: Normal User menu should contain Dashboard, Request Collection, My Requests, Report, Notifications, Profile', async () => {
     // 1. Register and login as Normal User
     await firstValueFrom(
       authService.register({
@@ -46,8 +46,9 @@ describe('UrbanClean — Role-Based Navigation and Route Protection', () => {
     // Confirm allowed items
     expect(menuLabels).toEqual([
       'Dashboard',
-      'Collection',
+      'Request Collection',
       'My Requests',
+      'Report',
       'Notifications',
       'Profile'
     ]);
@@ -56,25 +57,23 @@ describe('UrbanClean — Role-Based Navigation and Route Protection', () => {
       '/user/dashboard',
       '/user/request',
       '/user/requests',
+      '/user/reports',
       '/user/notifications',
       '/user/profile'
     ]);
 
-    // 3. Confirm Normal User does NOT see Map, Rewards, Reports, Users, Admin Requests
+    // 3. Confirm Normal User does NOT see Map, Rewards, Users, or Admin routes
     expect(menuLabels).not.toContain('Map');
     expect(menuLabels).not.toContain('Rewards');
-    expect(menuLabels).not.toContain('Reports');
     expect(menuLabels).not.toContain('Users');
-    expect(menuLabels).not.toContain('Requests');
 
     expect(menuRoutes).not.toContain('/admin/map');
-    expect(menuRoutes).not.toContain('/admin/rewards');
     expect(menuRoutes).not.toContain('/admin/reports');
     expect(menuRoutes).not.toContain('/admin/users');
     expect(menuRoutes).not.toContain('/admin/requests');
   });
 
-  it('Step 4 & 5: Admin menu should contain Dashboard, Users, Requests, Map, Rewards, Reports, Notifications, Profile, Logout', async () => {
+  it('Step 4 & 5: Admin menu should contain Dashboard, Requests, Report, Map, Notifications, Profile', async () => {
     // 4. Login as Admin
     await firstValueFrom(authService.login('admin@urbanclean.com', 'Admin123!'));
 
@@ -87,28 +86,24 @@ describe('UrbanClean — Role-Based Navigation and Route Protection', () => {
 
     expect(menuLabels).toEqual([
       'Dashboard',
-      'Users',
       'Requests',
+      'Report',
       'Map',
-      'Rewards',
-      'Reports',
       'Notifications',
       'Profile'
     ]);
 
     expect(menuRoutes).toEqual([
       '/admin/dashboard',
-      '/admin/users',
       '/admin/requests',
-      '/admin/map',
-      '/admin/rewards',
       '/admin/reports',
+      '/admin/map',
       '/admin/notifications',
       '/admin/profile'
     ]);
 
-    // Confirm Normal User-only items (Collection, My Requests) are NOT in Admin menu
-    expect(menuLabels).not.toContain('Collection');
+    // Confirm Normal User-only items are NOT in Admin menu
+    expect(menuLabels).not.toContain('Request Collection');
     expect(menuLabels).not.toContain('My Requests');
   });
 
@@ -133,7 +128,6 @@ describe('UrbanClean — Role-Based Navigation and Route Protection', () => {
       '/admin/users',
       '/admin/requests',
       '/admin/map',
-      '/admin/rewards',
       '/admin/reports',
       '/admin/notifications',
       '/admin/profile'
@@ -156,6 +150,7 @@ describe('UrbanClean — Role-Based Navigation and Route Protection', () => {
       '/user/dashboard',
       '/user/request',
       '/user/requests',
+      '/user/reports',
       '/user/notifications',
       '/user/profile'
     ];

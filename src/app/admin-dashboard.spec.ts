@@ -55,27 +55,23 @@ describe('UrbanClean — Admin Dashboard & Statistics', () => {
 
     expect(menuLabels).toEqual([
       'Dashboard',
-      'Users',
       'Requests',
+      'Report',
       'Map',
-      'Rewards',
-      'Reports',
       'Notifications',
       'Profile'
     ]);
 
     expect(menuRoutes).toEqual([
       '/admin/dashboard',
-      '/admin/users',
       '/admin/requests',
-      '/admin/map',
-      '/admin/rewards',
       '/admin/reports',
+      '/admin/map',
       '/admin/notifications',
       '/admin/profile'
     ]);
 
-    expect(menuLabels).not.toContain('Collection');
+    expect(menuLabels).not.toContain('Request Collection');
     expect(menuLabels).not.toContain('My Requests');
   });
 
