@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { AuthGuard, RoleGuard, SuperAdminGuard, AdminGuard, UserGuard } from './core/guards/auth.guard';
+import { AuthGuard, RoleGuard, SuperAdminGuard, AdminGuard, UserGuard, RecyclingCentreGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
   {
@@ -85,7 +85,7 @@ export const routes: Routes = [
       },
       {
         path: 'centre',
-        canActivate: [RoleGuard],
+        canActivate: [RecyclingCentreGuard],
         data: { roles: ['RECYCLING_CENTRE'] },
         children: [
           { path: 'dashboard', loadComponent: () => import('./features/recycling-centre/dashboard/dashboard.component').then(m => m.DashboardComponent) },

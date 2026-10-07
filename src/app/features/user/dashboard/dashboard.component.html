@@ -30,13 +30,6 @@
       </div>
     </div>
 
-    <div class="stat-card">
-      <div class="stat-icon">🏆</div>
-      <div class="stat-content">
-        <h3>Eco Points</h3>
-        <p class="stat-value" style="color: #16a085;">{{ ecoPoints }}</p>
-      </div>
-    </div>
   </div>
 
   <div class="dashboard-content">
@@ -111,7 +104,6 @@
               <th>Waste Type</th>
               <th>Status</th>
               <th>Created Date</th>
-              <th>Points</th>
             </tr>
           </thead>
           <tbody>
@@ -124,7 +116,6 @@
                 </span>
               </td>
               <td>{{ req.createdAt | date: 'short' }}</td>
-              <td>{{ req.greenPoints || 0 }} eco pts</td>
             </tr>
           </tbody>
         </table>

@@ -185,7 +185,7 @@ export class UserService {
       const users = parsed.map((user: User) => {
         let userId = user.id;
         // If user does not have a suitable sequential ID (USER01, USER02, ... or ADMIN01)
-        if (!userId || typeof userId !== 'string' || (!/^USER\d+$/i.test(userId) && !/^COLLECTOR\d+$/i.test(userId) && userId !== 'ADMIN01' && !userId.startsWith('admin-'))) {
+        if (!userId || typeof userId !== 'string' || (!/^USER\d+$/i.test(userId) && !/^COLLECTOR\d+$/i.test(userId) && !/^RECYCLING\d+$/i.test(userId) && userId !== 'ADMIN01' && !userId.startsWith('admin-'))) {
           if (user.role === 'ADMIN' || (user.email && user.email.toLowerCase() === 'admin@urbanclean.com')) {
             userId = 'ADMIN01';
           } else if (user.role === 'COLLECTOR') {

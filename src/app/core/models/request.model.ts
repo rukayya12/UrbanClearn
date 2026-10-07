@@ -14,6 +14,7 @@ export type RequestStatus =
   | 'rejected'
   | 'completed';
 export type RequestPriority = 'low' | 'medium' | 'high' | 'critical';
+export type RecyclingStatus = 'ready-for-recycling' | 'accepted' | 'processing' | 'recycled' | 'rejected';
 
 export interface WasteRequest {
   id: string;
@@ -35,16 +36,26 @@ export interface WasteRequest {
   proposedCollectionTime?: string;
   confirmedCollectionDate?: string;
   confirmedCollectionTime?: string;
+  collectionVerificationCode?: string;
+  verifiedAt?: Date;
+  verifiedByCollector?: string;
   status: RequestStatus;
   statusHistory: StatusChange[];
   collectorId?: string;
   collectorName?: string;
+  assignedCollectorId?: string;
+  assignedCollectorName?: string;
   assignedAt?: Date;
   recyclingCentreId?: string;
+  recyclingStatus?: RecyclingStatus;
+  recyclingAcceptedAt?: Date;
+  recyclingProcessingStartedAt?: Date;
+  recycledAt?: Date;
+  recyclingRejectedAt?: Date;
+  recyclingRejectionReason?: string;
   estimatedArrival?: Date;
   completionTime?: Date;
   completedAt?: Date;
-  greenPoints?: number;
   createdAt: Date;
   updatedAt: Date;
 }

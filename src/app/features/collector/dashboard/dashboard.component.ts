@@ -5,6 +5,7 @@ import { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { RequestService } from '../../../core/services/request.service';
 import { WasteRequest } from '../../../core/models/request.model';
+import { getTanzaniaDateTime } from '../../../core/utils/tanzania-date-time';
 
 @Component({
   selector: 'app-collector-dashboard',
@@ -68,7 +69,7 @@ export class DashboardComponent {
     this.assignedCollections = requests.filter(request => !['completed', 'rejected'].includes(request.status));
     this.awaitingSchedule = requests.filter(request => ['assigned', 'reschedule-required'].includes(request.status)).length;
     this.completedCollections = requests.filter(request => request.status === 'completed').length;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTanzaniaDateTime().date;
     this.todayRequests = requests.filter(request => request.confirmedCollectionDate === today && request.status !== 'completed');
     this.scheduledToday = this.todayRequests.length;
   }

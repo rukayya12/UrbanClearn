@@ -64,6 +64,35 @@ export class RoleGuard implements CanActivate {
 @Injectable({
   providedIn: 'root'
 })
+export class RecyclingCentreGuard implements CanActivate {
+  constructor(
+    private authService: AuthService,
+    private router: Router
+  ) {}
+
+  canActivate(): boolean {
+    if (!this.authService.isAuthenticated()) {
+      this.router.navigate(['/login']);
+      return false;
+    }
+
+    if (this.authService.hasRole('RECYCLING_CENTRE')) return true;
+
+    const destinationByRole: Partial<Record<UserRole, string>> = {
+      SUPER_ADMIN: '/super-admin/dashboard',
+      ADMIN: '/admin/dashboard',
+      NORMAL_USER: '/user/dashboard',
+      COLLECTOR: '/collector/dashboard'
+    };
+    const destination = destinationByRole[this.authService.getCurrentRole() as UserRole] || '/unauthorized';
+    this.router.navigate([destination]);
+    return false;
+  }
+}
+
+@Injectable({
+  providedIn: 'root'
+})
 export class SuperAdminGuard implements CanActivate {
   constructor(
     private authService: AuthService,

@@ -85,7 +85,7 @@
           </div>
           <div class="form-group">
             <label for="preferredTime">Preferred Time</label>
-            <input id="preferredTime" type="time" formControlName="preferredTime" />
+            <input id="preferredTime" type="time" formControlName="preferredTime" [min]="preferredTimeMin" />
           </div>
         </div>
         <p class="preference-note">This is a preference only. Your Collector will propose the collection time.</p>

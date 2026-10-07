@@ -9,6 +9,7 @@ import { NotificationService } from './core/services/notification.service';
 import { AdminGuard } from './core/guards/auth.guard';
 import { RequestsComponent as AdminRequestsComponent } from './features/admin/requests/requests.component';
 import { RequestsComponent as UserRequestsComponent } from './features/user/requests/requests.component';
+import { RequestsComponent as CollectorRequestsComponent } from './features/collector/requests/requests.component';
 import { DashboardComponent as AdminDashboardComponent } from './features/admin/dashboard/dashboard.component';
 import { WasteRequest } from './core/models/request.model';
 import { User } from './core/models/user.model';
@@ -139,17 +140,52 @@ describe('UrbanClean — Admin Requests Feature (Full 22-Step Verification Flow)
     expect(adminRequestsComp.selectedRequest?.userEmail).toBe('asha@gmail.com');
 
     // 14. Admin explicitly assigns the available Collector
+    userService.addCollector({
+      fullName: 'Second Test Collector',
+      email: 'collector2@urbanclean.com',
+      phone: '',
+      password: 'Collector123!',
+      address: 'Bububu',
+      latitude: -6.12,
+      longitude: 39.22,
+      availability: 'available'
+    });
+    userService.addCollector({
+      fullName: 'Busy Test Collector',
+      email: 'collector3@urbanclean.com',
+      phone: '',
+      password: 'Collector123!',
+      address: 'Mwera',
+      latitude: -6.20,
+      longitude: 39.30,
+      availability: 'busy'
+    });
     adminRequestsComp.openAssignment(adminRequestsComp.selectedRequest!);
     expect(adminRequestsComp.recommendedCollectorId).toBe('COLLECTOR01');
+    expect(adminRequestsComp.collectorRecommendations[0].collector.id).toBe('COLLECTOR01');
+    expect(adminRequestsComp.availabilityLabel(adminRequestsComp.collectorRecommendations[1])).toBe('Available');
+    expect(adminRequestsComp.availabilityLabel(adminRequestsComp.collectorRecommendations[2])).toBe('Busy');
+    expect(adminRequestsComp.collectorRecommendations[2].isAvailable).toBe(false);
     adminRequestsComp.assignCollector('COLLECTOR01');
 
     // 15. Confirm assignment is saved without a confirmed collection time
     const rawRequests: WasteRequest[] = JSON.parse(localStorage.getItem('urbanclean_requests')!);
     expect(rawRequests[0].status).toBe('assigned');
     expect(rawRequests[0].collectorId).toBe('COLLECTOR01');
+    expect(rawRequests[0].assignedCollectorId).toBe('COLLECTOR01');
+    expect(rawRequests[0].assignedCollectorName).toBe('Test Collector');
     expect(rawRequests[0].confirmedCollectionDate).toBeUndefined();
 
     // 16. Collector proposes a date and time; the Collector cannot approve it
+    authService.logout();
+    await firstValueFrom(authService.login('collector@urbanclean.com', 'Collector123!'));
+    expect(requestService.getCollectorRequests('COLLECTOR01').map(request => request.id)).toContain('REQ01');
+    expect(requestService.getCollectorRequests('COLLECTOR02').map(request => request.id)).not.toContain('REQ01');
+    authService.logout();
+    await firstValueFrom(authService.login('collector2@urbanclean.com', 'Collector123!'));
+    const otherCollectorPage = new CollectorRequestsComponent(authService, requestService);
+    expect(otherCollectorPage.requests.map(request => request.id)).not.toContain('REQ01');
+    otherCollectorPage.ngOnDestroy();
     authService.logout();
     await firstValueFrom(authService.login('collector@urbanclean.com', 'Collector123!'));
     expect(requestService.proposeCollectionTime('REQ01', 'COLLECTOR01', '2099-10-10', '11:00')).toBe(true);
@@ -302,7 +338,9 @@ describe('UrbanClean — Admin Requests Feature (Full 22-Step Verification Flow)
     authService.logout();
     await firstValueFrom(authService.login('collector@urbanclean.com', 'Collector123!'));
     expect(requestService.updateCollectionStatus(req.id, 'on-the-way')).toBe(true);
-    expect(requestService.updateCollectionStatus(req.id, 'collected')).toBe(true);
+    const collectionCode = requestService.getRequestById(req.id)?.collectionVerificationCode || '';
+    expect(collectionCode).toMatch(/^UC-\d{4,}$/);
+    expect(requestService.verifyCollectionCode(req.id, 'COLLECTOR01', collectionCode)).toBe(true);
     expect(requestService.updateCollectionStatus(req.id, 'completed')).toBe(true);
 
     const raw: WasteRequest[] = JSON.parse(localStorage.getItem('urbanclean_requests')!);

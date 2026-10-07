@@ -111,7 +111,6 @@ describe('Dashboard Layout & Dynamic Data Verification', () => {
         requestedTime: new Date(),
         status: 'completed' as const,
         statusHistory: [],
-        greenPoints: 40,
         createdAt: new Date(),
         updatedAt: new Date()
       };
@@ -124,7 +123,6 @@ describe('Dashboard Layout & Dynamic Data Verification', () => {
         requestedTime: new Date(),
         status: 'completed' as const,
         statusHistory: [],
-        greenPoints: 100,
         createdAt: new Date(),
         updatedAt: new Date()
       };
@@ -139,8 +137,6 @@ describe('Dashboard Layout & Dynamic Data Verification', () => {
       expect(comp.totalRequests).toBe(2);
       expect(comp.pendingRequests).toBe(1);
       expect(comp.completedRequests).toBe(1);
-      expect(comp.greenPoints).toBe(40);
-      expect(comp.ecoPoints).toBe(40);
       expect(comp.recentRequests.length).toBe(2);
       expect(comp.recentRequests.some(r => r.userId === 'USER02')).toBe(false);
     });

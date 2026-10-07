@@ -5,6 +5,7 @@ import { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { RequestService } from '../../../core/services/request.service';
 import { WasteRequest, RequestStatus } from '../../../core/models/request.model';
+import { formatDateOnly, formatTime12Hour, getTanzaniaDateTime, isFutureTanzaniaDateTime } from '../../../core/utils/tanzania-date-time';
 
 @Component({
   selector: 'app-collector-requests',
@@ -16,6 +17,8 @@ import { WasteRequest, RequestStatus } from '../../../core/models/request.model'
         <div><span class="eyebrow">COLLECTOR WORKSPACE</span><h1>Assigned Collections</h1><p>Requests assigned to your Collector account.</p></div>
         <span class="count-badge">{{ requests.length }} assigned</span>
       </header>
+      <p *ngIf="completionMessage" class="success-message" role="status">{{ completionMessage }}</p>
+      <p *ngIf="statusActionError" class="error-message" role="alert">{{ statusActionError }}</p>
 
       <section *ngIf="requests.length; else emptyState" class="request-list">
         <article *ngFor="let request of requests" class="request-card">
@@ -26,22 +29,25 @@ import { WasteRequest, RequestStatus } from '../../../core/models/request.model'
 
           <div class="details-grid">
             <div><span>User</span><strong>{{ request.userName }} ({{ request.userId }})</strong></div>
-            <div><span>Waste Type</span><strong>{{ request.wasteTypes.join(', ') }}</strong></div>
+            <div><span>Waste Type</span><strong>{{ wasteTypeLabel(request.wasteTypes) }}</strong></div>
             <div class="wide"><span>Collection Location</span><strong>{{ request.location.address }}</strong></div>
-            <div><span>User Preferred Date</span><strong>{{ request.preferredDate ? (request.preferredDate | date:'mediumDate') : 'No preference' }}</strong></div>
-            <div><span>User Preferred Time</span><strong>{{ request.preferredTime || 'No preference' }}</strong></div>
-            <div *ngIf="request.proposedCollectionDate"><span>Proposed Collection</span><strong>{{ request.proposedCollectionDate | date:'mediumDate' }} at {{ request.proposedCollectionTime }}</strong></div>
-            <div *ngIf="request.confirmedCollectionDate"><span>Confirmed Collection</span><strong>{{ request.confirmedCollectionDate | date:'mediumDate' }} at {{ request.confirmedCollectionTime }}</strong></div>
+            <div><span>User Preferred Date</span><strong>{{ request.preferredDate ? formatDate(request.preferredDate) : 'No preference' }}</strong></div>
+            <div><span>User Preferred Time</span><strong>{{ request.preferredTime ? formatTime(request.preferredTime) : 'No preference' }}</strong></div>
+            <div *ngIf="request.proposedCollectionDate"><span>Proposed Collection</span><strong>{{ formatDate(request.proposedCollectionDate) }} at {{ formatTime(request.proposedCollectionTime) }}</strong></div>
+            <div *ngIf="request.confirmedCollectionDate"><span>Confirmed Collection</span><strong>{{ formatDate(request.confirmedCollectionDate) }} at {{ formatTime(request.confirmedCollectionTime) }}</strong></div>
             <div class="wide" *ngIf="request.description"><span>Description</span><strong>{{ request.description }}</strong></div>
           </div>
 
-          <section *ngIf="request.status === 'assigned' || request.status === 'reschedule-required'" class="schedule-form">
+          <p *ngIf="verificationSuccesses[request.id]" class="success-message" role="status">{{ verificationSuccesses[request.id] }}</p>
+
+          <button *ngIf="(request.status === 'assigned' || request.status === 'reschedule-required') && !schedulingRequestIds.has(request.id)" type="button" class="primary-button" (click)="openSchedule(request)">Schedule Collection</button>
+          <section *ngIf="(request.status === 'assigned' || request.status === 'reschedule-required') && schedulingRequestIds.has(request.id)" class="schedule-form">
             <h3>{{ request.status === 'reschedule-required' ? 'Choose a different collection time' : 'Propose a collection time' }}</h3>
             <p *ngIf="request.status === 'reschedule-required'" class="reschedule-note">Admin requested a different time. Your earlier proposal was not approved.</p>
             <div class="schedule-fields">
               <label>Collection Date<input type="date" [name]="'date-' + request.id" [(ngModel)]="scheduleDrafts[request.id].date" [min]="today" /></label>
-              <label>Collection Time<input type="time" [name]="'time-' + request.id" [(ngModel)]="scheduleDrafts[request.id].time" /></label>
-              <button type="button" class="primary-button" (click)="proposeTime(request)">Schedule Collection</button>
+              <label>Collection Time<input type="time" [name]="'time-' + request.id" [(ngModel)]="scheduleDrafts[request.id].time" [min]="timeMin(scheduleDrafts[request.id].date)" /></label>
+              <button type="button" class="primary-button" (click)="proposeTime(request)">Submit Proposed Time</button>
             </div>
             <p *ngIf="scheduleErrors[request.id]" class="error-message" role="alert">{{ scheduleErrors[request.id] }}</p>
           </section>
@@ -49,12 +55,31 @@ import { WasteRequest, RequestStatus } from '../../../core/models/request.model'
           <div class="collection-actions" *ngIf="nextStatus(request.status) as next">
             <button type="button" class="status-action" (click)="advanceStatus(request, next)">{{ actionLabel(next) }}</button>
           </div>
+          <div class="collection-actions" *ngIf="request.status === 'scheduled' || request.status === 'on-the-way'">
+            <button type="button" class="primary-button" (click)="openVerification(request)">Verify Collection</button>
+          </div>
         </article>
       </section>
 
       <ng-template #emptyState>
         <section class="empty-state"><span>📋</span><h2>No assigned collections</h2><p>New Admin assignments will appear here.</p></section>
       </ng-template>
+
+      <div *ngIf="verificationRequest" class="verification-backdrop" (click)="cancelVerification()">
+        <section class="verification-modal" role="dialog" aria-modal="true" aria-labelledby="verification-title" (click)="$event.stopPropagation()">
+          <h2 id="verification-title">Verify Collection</h2>
+          <p>Request {{ verificationRequest.id }}</p>
+          <form (ngSubmit)="verifyCollection()">
+            <label for="collection-code">Enter Collection Verification Code</label>
+            <input id="collection-code" name="collectionCode" [(ngModel)]="verificationCode" autocomplete="off" required />
+            <p *ngIf="verificationError" class="error-message" role="alert">{{ verificationError }}</p>
+            <div class="verification-actions">
+              <button type="submit" class="primary-button">Verify</button>
+              <button type="button" class="cancel-button" (click)="cancelVerification()">Cancel</button>
+            </div>
+          </form>
+        </section>
+      </div>
     </main>
   `,
   styles: [`
@@ -91,9 +116,19 @@ import { WasteRequest, RequestStatus } from '../../../core/models/request.model'
     .schedule-fields label { display: grid; gap: 5px; color: #365343; font-size: 12px; font-weight: 700; }
     input { min-width: 0; height: 39px; padding: 8px; border: 1px solid #c8d5cc; border-radius: 4px; background: #fff; font: inherit; }
     .primary-button, .status-action { min-height: 39px; padding: 9px 13px; border: 0; border-radius: 5px; background: #15803d; color: #fff; font-weight: 700; cursor: pointer; }
+    .primary-button { min-height: 48px; }
     .collection-actions { display: flex; justify-content: flex-end; margin-top: 14px; }
     .status-action { background: #0f766e; }
     .error-message { color: #b42318; font-size: 12px; }
+    .success-message { color:#166534; font-size:13px; font-weight:700; }
+    .verification-backdrop { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; padding:16px; background:rgba(15,23,42,.55); }
+    .verification-modal { width:min(100%,420px); padding:22px; border-radius:7px; background:#fff; box-shadow:0 16px 48px rgba(0,0,0,.24); }
+    .verification-modal h2 { margin:0; font-size:20px; }
+    .verification-modal p { color:#64748b; font-size:13px; }
+    .verification-modal label { display:block; margin:16px 0 6px; font-size:13px; font-weight:700; }
+    .verification-modal input { width:100%; min-height:46px; font:inherit; text-transform:uppercase; }
+    .verification-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px; }
+    .cancel-button { min-height:48px; padding:9px 13px; border:1px solid #cbd5e1; border-radius:5px; background:#fff; color:#334155; font-weight:700; cursor:pointer; }
     .empty-state { padding: 44px 18px; text-align: center; }
     .empty-state span { font-size: 28px; }
     .empty-state h2 { margin: 10px 0 5px; font-size: 18px; }
@@ -105,7 +140,13 @@ export class RequestsComponent {
   requests: WasteRequest[] = [];
   scheduleDrafts: Record<string, { date: string; time: string }> = {};
   scheduleErrors: Record<string, string> = {};
-  readonly today = new Date().toISOString().slice(0, 10);
+  schedulingRequestIds = new Set<string>();
+  verificationRequest: WasteRequest | null = null;
+  verificationCode = '';
+  verificationError = '';
+  verificationSuccesses: Record<string, string> = {};
+  completionMessage = '';
+  statusActionError = '';
   private subscription: Subscription;
   private collectorId = '';
 
@@ -127,9 +168,32 @@ export class RequestsComponent {
     return `status-${status}`;
   }
 
+  get today(): string {
+    return getTanzaniaDateTime().date;
+  }
+
+  timeMin(date?: string): string | null {
+    return date === this.today ? getTanzaniaDateTime().time : null;
+  }
+
+  formatTime(time?: string): string {
+    return formatTime12Hour(time);
+  }
+
+  formatDate(date?: string): string {
+    return formatDateOnly(date);
+  }
+
+  wasteTypeLabel(wasteTypes: WasteRequest['wasteTypes']): string {
+    return wasteTypes.map(type => type === 'organic' ? 'Household Waste' : type.replace('-', ' ').replace(/\b\w/g, letter => letter.toUpperCase())).join(', ');
+  }
+
+  openSchedule(request: WasteRequest): void {
+    this.schedulingRequestIds.add(request.id);
+  }
+
   nextStatus(status: RequestStatus): 'on-the-way' | 'collected' | 'completed' | null {
     if (status === 'scheduled') return 'on-the-way';
-    if (status === 'on-the-way') return 'collected';
     if (status === 'collected') return 'completed';
     return null;
   }
@@ -144,16 +208,51 @@ export class RequestsComponent {
       this.scheduleErrors[request.id] = 'Choose both a collection date and time.';
       return;
     }
+    if (!isFutureTanzaniaDateTime(draft.date, draft.time)) {
+      this.scheduleErrors[request.id] = 'Choose a collection date and time in the future.';
+      return;
+    }
     const success = this.requestService.proposeCollectionTime(request.id, this.collectorId, draft.date, draft.time);
     this.scheduleErrors[request.id] = success ? '' : 'That time is unavailable or conflicts with another assigned collection.';
   }
 
   advanceStatus(request: WasteRequest, status: 'on-the-way' | 'collected' | 'completed'): void {
-    this.requestService.updateCollectionStatus(request.id, status);
+    const updated = this.requestService.updateCollectionStatus(request.id, status);
+    if (status === 'completed') {
+      this.completionMessage = updated ? 'Collection completed successfully.' : '';
+      this.statusActionError = updated ? '' : 'Only your collected requests can be completed.';
+      return;
+    }
+    this.statusActionError = updated ? '' : 'This request cannot be moved to that status.';
+  }
+
+  openVerification(request: WasteRequest): void {
+    this.verificationRequest = request;
+    this.verificationCode = '';
+    this.verificationError = '';
+  }
+
+  cancelVerification(): void {
+    this.verificationRequest = null;
+    this.verificationCode = '';
+    this.verificationError = '';
+  }
+
+  verifyCollection(): void {
+    if (!this.verificationRequest) return;
+    const request = this.verificationRequest;
+    if (!this.requestService.verifyCollectionCode(request.id, this.collectorId, this.verificationCode)) {
+      this.verificationError = 'Invalid collection verification code. Please ask the user for the correct code.';
+      return;
+    }
+    this.verificationSuccesses[request.id] = 'Collection verified successfully. The waste has been marked as collected.';
+    this.cancelVerification();
   }
 
   private loadRequests(): void {
-    this.requests = this.collectorId ? this.requestService.getCollectorRequests(this.collectorId) : [];
+    this.requests = this.collectorId
+      ? this.requestService.getCollectorRequests(this.collectorId).filter(request => request.status !== 'completed')
+      : [];
     for (const request of this.requests) {
       if (!this.scheduleDrafts[request.id]) {
         this.scheduleDrafts[request.id] = {

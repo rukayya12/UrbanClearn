@@ -22,8 +22,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   totalRequests = 0;
   pendingRequests = 0;
   completedRequests = 0;
-  greenPoints = 0;
-  ecoPoints = 0;
   recentRequests: WasteRequest[] = [];
   userNotifications: Notification[] = [];
   unreadNotificationCount = 0;
@@ -74,7 +72,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.totalRequests = 0;
       this.pendingRequests = 0;
       this.completedRequests = 0;
-      this.greenPoints = 0;
       this.recentRequests = [];
       this.userNotifications = [];
       this.unreadNotificationCount = 0;
@@ -89,12 +86,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     ).length;
     this.completedRequests = userRequests.filter(r => r.status === 'completed').length;
     this.recentRequests = userRequests.slice(0, 5);
-
-    const completedPoints = userRequests
-      .filter(r => r.status === 'completed')
-      .reduce((sum, r) => sum + (r.greenPoints || 0), 0);
-    this.greenPoints = completedPoints;
-    this.ecoPoints = this.greenPoints;
 
     // Get notifications for this logged-in user
     this.userNotifications = this.notificationService.getUserNotifications(this.currentUser.id).slice(0, 3);

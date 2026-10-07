@@ -14,6 +14,7 @@ export class AuthService {
 
   constructor() {
     this.ensureDemoAdminAccount();
+    this.ensureDemoRecyclingCentreAccount();
     this.refreshCurrentUser();
   }
 
@@ -48,11 +49,72 @@ export class AuthService {
     }
   }
 
+  private ensureDemoRecyclingCentreAccount(): void {
+    const users = this.getAllUsers();
+    const demoEmail = 'recycling01@urbanclean.com';
+    const identityExists = users.some(user =>
+      user.role === 'RECYCLING_CENTRE' ||
+      user.id === 'RECYCLING01' ||
+      user.email.trim().toLowerCase() === demoEmail
+    );
+    if (identityExists) return;
+
+    const now = new Date();
+    users.push({
+      id: 'RECYCLING01',
+      fullName: 'UrbanClean Recycling Centre',
+      email: demoEmail,
+      phone: '',
+      password: '123456',
+      role: 'RECYCLING_CENTRE',
+      location: {
+        latitude: -6.1639,
+        longitude: 39.189,
+        address: 'Stone Town',
+        region: 'Zanzibar',
+        district: 'Zanzibar City',
+        city: 'Stone Town'
+      },
+      createdAt: now,
+      updatedAt: now,
+      isActive: true
+    });
+    this.saveUsers(users);
+  }
+
   login(email: string, password: string): Observable<{ success: boolean; message: string; isNotRegistered?: boolean }> {
     return new Observable(observer => {
       setTimeout(() => {
         const users = this.getAllUsers();
         const trimmedEmail = (email || '').trim().toLowerCase();
+        if (
+          trimmedEmail === 'collector@urbanclean.com' &&
+          password === 'Collector123!' &&
+          !users.some(user => user.email.trim().toLowerCase() === trimmedEmail) &&
+          !users.some(user => user.id === 'COLLECTOR01')
+        ) {
+          const now = new Date();
+          users.push({
+            id: 'COLLECTOR01',
+            fullName: 'UrbanClean Collector',
+            email: trimmedEmail,
+            phone: '',
+            password,
+            role: 'COLLECTOR',
+            location: {
+              latitude: -6.1639,
+              longitude: 39.189,
+              address: 'Stone Town',
+              region: 'Zanzibar',
+              district: 'Zanzibar City',
+              city: 'Stone Town'
+            },
+            createdAt: now,
+            updatedAt: now,
+            isActive: true
+          });
+          this.saveUsers(users);
+        }
         const user = users.find(u => u.email.trim().toLowerCase() === trimmedEmail);
 
         if (!user) {
@@ -313,7 +375,7 @@ export class AuthService {
       const users = parsed.map((user: User) => {
         let userId = user.id;
         // If user does not have a suitable sequential ID (USER01, USER02, ... or ADMIN01)
-        if (!userId || typeof userId !== 'string' || (!/^USER\d+$/i.test(userId) && !/^COLLECTOR\d+$/i.test(userId) && userId !== 'ADMIN01' && !userId.startsWith('admin-'))) {
+        if (!userId || typeof userId !== 'string' || (!/^USER\d+$/i.test(userId) && !/^COLLECTOR\d+$/i.test(userId) && !/^RECYCLING\d+$/i.test(userId) && userId !== 'ADMIN01' && !userId.startsWith('admin-'))) {
           if (user.role === 'ADMIN' || (user.email && user.email.toLowerCase() === 'admin@urbanclean.com')) {
             userId = 'ADMIN01';
           } else if (user.role === 'COLLECTOR') {

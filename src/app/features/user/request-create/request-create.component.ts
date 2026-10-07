@@ -8,6 +8,7 @@ import { UserService } from '../../../core/services/user.service';
 import { LocationService } from '../../../core/services/location.service';
 import { WasteType } from '../../../core/models/request.model';
 import { User } from '../../../core/models/user.model';
+import { getTanzaniaDateTime, isValidTanzaniaPreference, tanzaniaDateTimeToDate } from '../../../core/utils/tanzania-date-time';
 
 @Component({
   selector: 'app-request-create',
@@ -17,7 +18,6 @@ import { User } from '../../../core/models/user.model';
   styleUrls: ['./request-create.component.scss']
 })
 export class RequestCreateComponent implements OnInit {
-  today = new Date().toISOString().slice(0, 10);
   requestForm!: FormGroup;
   loading = false;
   errorMessage = '';
@@ -25,6 +25,16 @@ export class RequestCreateComponent implements OnInit {
   wasteTypeOptions: WasteType[] = ['plastic', 'organic', 'liquid', 'paper', 'food-waste'];
   selectedWasteTypes: WasteType[] = [];
   currentUser: User | null = null;
+
+  get today(): string {
+    return getTanzaniaDateTime().date;
+  }
+
+  get preferredTimeMin(): string | null {
+    return this.requestForm?.get('preferredDate')?.value === this.today
+      ? getTanzaniaDateTime().time
+      : null;
+  }
 
   constructor(
     private formBuilder: FormBuilder,
@@ -90,13 +100,18 @@ export class RequestCreateComponent implements OnInit {
       return;
     }
 
+    const formValue = this.requestForm.value;
+    if (!isValidTanzaniaPreference(formValue.preferredDate || undefined, formValue.preferredTime || undefined)) {
+      this.errorMessage = 'Choose a preferred date and time that is still in the future.';
+      return;
+    }
+
     this.loading = true;
     this.errorMessage = '';
     this.successMessage = '';
 
-    const formValue = this.requestForm.value;
     const requestedTime = formValue.preferredDate && formValue.preferredTime
-      ? new Date(`${formValue.preferredDate}T${formValue.preferredTime}`)
+      ? tanzaniaDateTimeToDate(formValue.preferredDate, formValue.preferredTime) || new Date()
       : new Date();
     const hasCoordinatePair = formValue.latitude !== '' && formValue.longitude !== '';
 

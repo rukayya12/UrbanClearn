@@ -9,6 +9,7 @@ import { LocationService } from '../../../core/services/location.service';
 import { CollectorRecommendation } from '../../../core/services/request.service';
 import { WasteRequest } from '../../../core/models/request.model';
 import { User } from '../../../core/models/user.model';
+import { formatDateOnly, formatTime12Hour, formatTanzaniaInstant } from '../../../core/utils/tanzania-date-time';
 
 @Component({
   selector: 'app-admin-requests',
@@ -110,8 +111,8 @@ import { User } from '../../../core/models/user.model';
                     📍 {{ req.location?.address || 'Zanzibar' }}
                   </span>
                 </td>
-                <td class="date-cell">{{ req.preferredDate ? (req.preferredDate | date:'dd/MM/yyyy') : 'No preference' }}</td>
-                <td class="time-cell">{{ req.preferredTime || 'No preference' }}</td>
+                <td class="date-cell">{{ req.preferredDate ? formatDate(req.preferredDate) : 'No preference' }}</td>
+                <td class="time-cell">{{ req.preferredTime ? formatTime(req.preferredTime) : 'No preference' }}</td>
                 <td>{{ req.collectorName || 'Not assigned' }}</td>
                 <td>
                   <span class="status-pill" [ngClass]="'status-' + (req.status | lowercase)">
@@ -178,7 +179,7 @@ import { User } from '../../../core/models/user.model';
               </div>
               <div class="mobile-detail-row">
                 <span class="lbl">Preferred:</span>
-                <span class="val">{{ req.preferredDate ? (req.preferredDate | date:'dd/MM/yyyy') : 'No date' }} {{ req.preferredTime || '' }}</span>
+                <span class="val">{{ req.preferredDate ? formatDate(req.preferredDate) : 'No date' }} {{ formatTime(req.preferredTime) }}</span>
               </div>
               <div class="mobile-detail-row">
                 <span class="lbl">Collector:</span>
@@ -186,11 +187,11 @@ import { User } from '../../../core/models/user.model';
               </div>
               <div class="mobile-detail-row" *ngIf="req.proposedCollectionDate">
                 <span class="lbl">Proposed:</span>
-                <span class="val">{{ req.proposedCollectionDate | date:'dd/MM/yyyy' }} at {{ req.proposedCollectionTime }}</span>
+                <span class="val">{{ formatDate(req.proposedCollectionDate) }} at {{ formatTime(req.proposedCollectionTime) }}</span>
               </div>
               <div class="mobile-detail-row" *ngIf="req.confirmedCollectionDate">
                 <span class="lbl">Confirmed:</span>
-                <span class="val">{{ req.confirmedCollectionDate | date:'dd/MM/yyyy' }} at {{ req.confirmedCollectionTime }}</span>
+                <span class="val">{{ formatDate(req.confirmedCollectionDate) }} at {{ formatTime(req.confirmedCollectionTime) }}</span>
               </div>
             </div>
 
@@ -269,11 +270,11 @@ import { User } from '../../../core/models/user.model';
               </div>
               <div class="detail-item">
                 <span class="detail-label">Preferred Date</span>
-                <span class="detail-value">{{ selectedRequest.preferredDate ? (selectedRequest.preferredDate | date:'dd/MM/yyyy') : 'No preference' }}</span>
+                <span class="detail-value">{{ selectedRequest.preferredDate ? formatDate(selectedRequest.preferredDate) : 'No preference' }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">Preferred Time</span>
-                <span class="detail-value">{{ selectedRequest.preferredTime || 'No preference' }}</span>
+                <span class="detail-value">{{ selectedRequest.preferredTime ? formatTime(selectedRequest.preferredTime) : 'No preference' }}</span>
               </div>
               <div class="detail-item full-width">
                 <span class="detail-label">Waste Types</span>
@@ -297,11 +298,11 @@ import { User } from '../../../core/models/user.model';
               </div>
               <div class="detail-item" *ngIf="selectedRequest.proposedCollectionDate">
                 <span class="detail-label">Proposed Collection</span>
-                <span class="detail-value">{{ selectedRequest.proposedCollectionDate | date:'mediumDate' }} at {{ selectedRequest.proposedCollectionTime }}</span>
+                <span class="detail-value">{{ formatDate(selectedRequest.proposedCollectionDate) }} at {{ formatTime(selectedRequest.proposedCollectionTime) }}</span>
               </div>
               <div class="detail-item" *ngIf="selectedRequest.confirmedCollectionDate">
                 <span class="detail-label">Confirmed Collection</span>
-                <span class="detail-value">{{ selectedRequest.confirmedCollectionDate | date:'mediumDate' }} at {{ selectedRequest.confirmedCollectionTime }}</span>
+                <span class="detail-value">{{ formatDate(selectedRequest.confirmedCollectionDate) }} at {{ formatTime(selectedRequest.confirmedCollectionTime) }}</span>
               </div>
               <div class="detail-item full-width" *ngIf="selectedRequest.description">
                 <span class="detail-label">Description / Instructions</span>
@@ -309,7 +310,7 @@ import { User } from '../../../core/models/user.model';
               </div>
               <div class="detail-item full-width">
                 <span class="detail-label">Request Date (Submitted)</span>
-                <span class="detail-value">{{ selectedRequest.createdAt | date:'medium' }}</span>
+                <span class="detail-value">{{ formatTanzaniaInstant(selectedRequest.createdAt) }}</span>
               </div>
             </div>
 
@@ -337,7 +338,7 @@ import { User } from '../../../core/models/user.model';
             <div>
               <span class="modal-eyebrow">NEARBY COLLECTORS</span>
               <h2 id="assignment-title">Assign {{ assignmentRequest.id }}</h2>
-              <p>{{ assignmentRequest.location.address }} · Preferred {{ assignmentRequest.preferredDate || 'date not set' }} {{ assignmentRequest.preferredTime || '' }}</p>
+              <p>{{ assignmentRequest.location.address }} · Preferred {{ assignmentRequest.preferredDate ? formatDate(assignmentRequest.preferredDate) : 'date not set' }} {{ formatTime(assignmentRequest.preferredTime) }}</p>
             </div>
             <button class="modal-close-btn" aria-label="Close collector selection" (click)="closeAssignment()">&times;</button>
           </header>
@@ -354,7 +355,7 @@ import { User } from '../../../core/models/user.model';
                   </div>
                   <span class="collector-name">{{ option.collector.fullName }}</span>
                 </div>
-                <span class="availability" [class.available]="option.isAvailable">{{ option.isAvailable ? 'Available' : 'Unavailable' }}</span>
+                <span class="availability" [class.available]="option.isAvailable" [class.busy]="!option.isAvailable">{{ availabilityLabel(option) }}</span>
               </div>
               <dl class="collector-details">
                 <div><dt>Registered location</dt><dd>{{ option.collector.location?.address || 'Not provided' }}</dd></div>
@@ -1193,7 +1194,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
     this.assignmentRequest = request;
     this.assignmentMessage = '';
     this.collectorRecommendations = this.requestService.getCollectorRecommendations(request.id);
-    this.recommendedCollectorId = this.collectorRecommendations.find(option => option.isAvailable)?.collector.id || null;
+    this.recommendedCollectorId = this.collectorRecommendations.find(option => option.isAvailable && option.distanceMeters !== null)?.collector.id || null;
   }
 
   closeAssignment(): void {
@@ -1208,7 +1209,7 @@ export class RequestsComponent implements OnInit, OnDestroy {
     if (!this.requestService.assignCollector(this.assignmentRequest.id, collectorId)) {
       this.assignmentMessage = 'That Collector is no longer available for this request. Refresh the list and choose another.';
       this.collectorRecommendations = this.requestService.getCollectorRecommendations(this.assignmentRequest.id);
-      this.recommendedCollectorId = this.collectorRecommendations.find(option => option.isAvailable)?.collector.id || null;
+      this.recommendedCollectorId = this.collectorRecommendations.find(option => option.isAvailable && option.distanceMeters !== null)?.collector.id || null;
       return;
     }
     this.closeAssignment();
@@ -1232,6 +1233,24 @@ export class RequestsComponent implements OnInit, OnDestroy {
 
   formatDistance(distanceMeters: number | null): string {
     return distanceMeters === null ? 'Distance unavailable' : this.locationService.formatDistance(distanceMeters);
+  }
+
+  formatDate(date?: string): string {
+    return formatDateOnly(date);
+  }
+
+  formatTime(time?: string): string {
+    return formatTime12Hour(time);
+  }
+
+  formatTanzaniaInstant(value?: Date | string): string {
+    return formatTanzaniaInstant(value);
+  }
+
+  availabilityLabel(option: CollectorRecommendation): string {
+    if (option.isAvailable) return 'Available';
+    if (option.collector.availability === 'offline') return 'Offline';
+    return 'Busy';
   }
 
   hasRequestCoordinates(request: WasteRequest): boolean {

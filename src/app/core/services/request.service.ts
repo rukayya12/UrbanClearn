@@ -1,11 +1,12 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable } from 'rxjs';
-import { WasteRequest, StatusChange, RequestStatus, WasteType } from '../models/request.model';
+import { BehaviorSubject, Observable, map } from 'rxjs';
+import { WasteRequest, StatusChange, RequestStatus, WasteType, RecyclingStatus } from '../models/request.model';
 import { LocationService } from './location.service';
 import { AuthService } from './auth.service';
 import { UserService } from './user.service';
 import { NotificationService } from './notification.service';
 import { Collector } from '../models/user.model';
+import { isFutureTanzaniaDateTime, isValidTanzaniaPreference } from '../utils/tanzania-date-time';
 
 export interface CollectorRecommendation {
   collector: Collector;
@@ -20,7 +21,9 @@ export interface CollectorRecommendation {
 })
 export class RequestService {
   private requestsSubject = new BehaviorSubject<WasteRequest[]>(this.getRequestsFromStorage());
-  public requests$ = this.requestsSubject.asObservable();
+  public get requests$(): Observable<WasteRequest[]> {
+    return this.requestsSubject.asObservable().pipe(map(requests => this.visibleVerificationCodes(requests)));
+  }
 
   constructor(
     private locationService: LocationService,
@@ -49,9 +52,17 @@ export class RequestService {
               return r;
             });
 
-          const hasReq01 = cleaned.some((r: any) => r.id === 'REQ01');
-          if (!hasReq01) {
-            localStorage.removeItem('urbanclean_request_seq');
+          const usedCodes = new Set<string>();
+          for (const request of cleaned) {
+            if (!request.collectionVerificationCode || usedCodes.has(request.collectionVerificationCode)) {
+              request.collectionVerificationCode = this.generateCollectionVerificationCode(usedCodes);
+              modified = true;
+            }
+            usedCodes.add(request.collectionVerificationCode);
+            if (request.status === 'completed' && !request.recyclingStatus) {
+              request.recyclingStatus = 'ready-for-recycling';
+              modified = true;
+            }
           }
 
           if (cleaned.length !== parsed.length || modified) {
@@ -61,8 +72,6 @@ export class RequestService {
           }
         }
       } catch {}
-    } else {
-      localStorage.removeItem('urbanclean_request_seq');
     }
   }
 
@@ -74,59 +83,35 @@ export class RequestService {
    */
   generateNextRequestId(userId?: string): string {
     const allRequests = this.getRequestsFromStorage();
-
-    // Trace the contiguous chain of valid sequential requests starting at 1 (REQ01)
-    let validSeqLength = 0;
-    let lastCreatedAt = -1;
-    let lastIndex = -1;
-
-    while (true) {
-      const targetNum = validSeqLength + 1;
-      const targetPad = targetNum < 10 ? `0${targetNum}` : `${targetNum}`;
-      const targetId = `REQ${targetPad}`;
-
-      const candidates = allRequests.filter(r => 
-        r.id === targetId && 
-        r.userId !== 'user-001'
-      );
-
-      if (candidates.length === 0) {
-        break;
-      }
-
-      if (validSeqLength === 0) {
-        // First request REQ01 marks the start of the valid sequential chain
-        const reqTime = candidates[0].createdAt ? new Date(candidates[0].createdAt).getTime() : 0;
-        lastCreatedAt = isNaN(reqTime) ? 0 : reqTime;
-        lastIndex = allRequests.indexOf(candidates[0]);
-        validSeqLength = 1;
-      } else {
-        // Subsequent requests must be in chronological or storage order following the predecessor
-        const validCandidate = candidates.find(r => {
-          const reqTime = r.createdAt ? new Date(r.createdAt).getTime() : 0;
-          const idx = allRequests.indexOf(r);
-          return (isNaN(reqTime) ? false : reqTime >= lastCreatedAt) || idx > lastIndex;
-        });
-
-        if (validCandidate) {
-          const reqTime = validCandidate.createdAt ? new Date(validCandidate.createdAt).getTime() : 0;
-          lastCreatedAt = isNaN(reqTime) ? lastCreatedAt : reqTime;
-          lastIndex = Math.max(lastIndex, allRequests.indexOf(validCandidate));
-          validSeqLength++;
-        } else {
-          break;
-        }
-      }
+    const highestStoredId = allRequests.reduce((highest, request) => {
+      const match = /^REQ(\d+)$/i.exec(request.id);
+      return match ? Math.max(highest, Number(match[1])) : highest;
+    }, 0);
+    const storedNextId = Number(localStorage.getItem('urbanclean_request_seq')) || 1;
+    let nextNumber = Math.max(highestStoredId + 1, storedNextId);
+    let nextId = this.formatRequestId(nextNumber);
+    while (allRequests.some(request => request.id === nextId)) {
+      nextNumber++;
+      nextId = this.formatRequestId(nextNumber);
     }
-
-    const nextSeq = validSeqLength + 1;
-    const padded = nextSeq < 10 ? `0${nextSeq}` : `${nextSeq}`;
-    const nextId = `REQ${padded}`;
-
-    // Update storage counter
-    localStorage.setItem('urbanclean_request_seq', nextSeq.toString());
-
+    localStorage.setItem('urbanclean_request_seq', String(nextNumber + 1));
     return nextId;
+  }
+
+  private formatRequestId(sequence: number): string {
+    return `REQ${String(sequence).padStart(2, '0')}`;
+  }
+
+  private generateCollectionVerificationCode(usedCodes: Set<string>): string {
+    const firstCandidate = Math.floor(Math.random() * 9000);
+    for (let offset = 0; offset < 9000; offset++) {
+      const number = 1000 + ((firstCandidate + offset) % 9000);
+      const code = `UC-${number}`;
+      if (!usedCodes.has(code)) return code;
+    }
+    let number = 10000;
+    while (usedCodes.has(`UC-${number}`)) number++;
+    return `UC-${number}`;
   }
 
   createRequest(
@@ -145,6 +130,12 @@ export class RequestService {
 
         if (!currentUser) {
           observer.next({ success: false, message: 'User not authenticated' });
+          observer.complete();
+          return;
+        }
+
+        if (!isValidTanzaniaPreference(preferredDate, preferredTime)) {
+          observer.next({ success: false, message: 'Choose a preferred date and time that is still in the future.' });
           observer.complete();
           return;
         }
@@ -170,6 +161,9 @@ export class RequestService {
           requestedTime: requestedTime || new Date(),
           preferredDate: preferredDate || undefined,
           preferredTime: preferredTime || undefined,
+          collectionVerificationCode: this.generateCollectionVerificationCode(
+            new Set(this.getRequestsFromStorage().map(item => item.collectionVerificationCode).filter((code): code is string => !!code))
+          ),
           status: 'pending',
           statusHistory: [
             { status: 'pending', timestamp: now, notes: 'Request created by user' }
@@ -179,7 +173,7 @@ export class RequestService {
         };
 
         // Filter out any stale item that had this ID so IDs remain unique
-        const requests = this.getRequestsFromStorage().filter(r => r.id !== nextId);
+        const requests = this.getRequestsFromStorage();
         requests.push(request);
         localStorage.setItem('urbanclean_requests', JSON.stringify(requests));
         this.requestsSubject.next(requests);
@@ -229,13 +223,139 @@ export class RequestService {
   }
 
   getUserRequests(userId: string): WasteRequest[] {
-    return this.getRequestsFromStorage().filter(r => r.userId === userId);
+    return this.visibleVerificationCodes(this.getRequestsFromStorage().filter(r => r.userId === userId));
+  }
+
+  private visibleVerificationCodes(requests: WasteRequest[]): WasteRequest[] {
+    const viewer = this.authService.getCurrentUser();
+    if (viewer?.role === 'ADMIN' || viewer?.role === 'SUPER_ADMIN') return requests;
+    return requests.map(request => {
+      const userCanSee = viewer?.role === 'NORMAL_USER' && viewer.id === request.userId &&
+        ['scheduled', 'on-the-way', 'collected', 'completed'].includes(request.status);
+      if (userCanSee) return request;
+      const { collectionVerificationCode: _hiddenCode, ...visibleRequest } = request;
+      return visibleRequest as WasteRequest;
+    });
   }
 
   getCollectorRequests(collectorId: string): WasteRequest[] {
+    this.ensureCollectorTestRequest(collectorId);
     return this.getRequestsFromStorage().filter(
-      r => r.collectorId === collectorId && r.status !== 'rejected'
-    );
+      r => (r.assignedCollectorId || r.collectorId) === collectorId && r.status !== 'rejected'
+    ).map(({ collectionVerificationCode: _hiddenCode, ...request }) => request as WasteRequest);
+  }
+
+  getRecyclingRequests(centreId: string): WasteRequest[] {
+    if (!centreId) return [];
+    return this.getRequestsFromStorage()
+      .filter(request => request.status === 'completed' && (!request.recyclingCentreId || request.recyclingCentreId === centreId))
+      .map(({ collectionVerificationCode: _hiddenCode, ...request }) => ({
+        ...request,
+        recyclingStatus: request.recyclingStatus || 'ready-for-recycling'
+      }));
+  }
+
+  updateRecyclingStatus(
+    requestId: string,
+    centreId: string,
+    nextStatus: RecyclingStatus,
+    rejectionReason?: string
+  ): boolean {
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser || currentUser.id !== centreId || !this.authService.hasRole('RECYCLING_CENTRE')) return false;
+
+    const requests = this.getRequestsFromStorage();
+    const request = requests.find(item => item.id === requestId);
+    if (!request || request.status !== 'completed' || (request.recyclingCentreId && request.recyclingCentreId !== centreId)) return false;
+
+    const currentStatus = request.recyclingStatus || 'ready-for-recycling';
+    const allowedNext: Record<RecyclingStatus, RecyclingStatus[]> = {
+      'ready-for-recycling': ['accepted', 'rejected'],
+      accepted: ['processing'],
+      processing: ['recycled'],
+      recycled: [],
+      rejected: []
+    };
+    if (!allowedNext[currentStatus].includes(nextStatus)) return false;
+    if (nextStatus === 'rejected' && !rejectionReason?.trim()) return false;
+
+    const now = new Date();
+    request.recyclingStatus = nextStatus;
+    request.recyclingCentreId = centreId;
+    request.updatedAt = now;
+    if (nextStatus === 'accepted') request.recyclingAcceptedAt = now;
+    if (nextStatus === 'processing') request.recyclingProcessingStartedAt = now;
+    if (nextStatus === 'recycled') request.recycledAt = now;
+    if (nextStatus === 'rejected') {
+      request.recyclingRejectedAt = now;
+      request.recyclingRejectionReason = rejectionReason!.trim();
+    }
+    this.saveRequests(requests);
+    const notificationMessages: Record<RecyclingStatus, { title: string; message: string } | undefined> = {
+      'ready-for-recycling': undefined,
+      accepted: {
+        title: 'Recycling Request Accepted',
+        message: `Recycling request ${request.id} has been accepted.`
+      },
+      processing: {
+        title: 'Recycling Processing Started',
+        message: `Recycling request ${request.id} is now being processed.`
+      },
+      recycled: {
+        title: 'Recycling Request Recycled',
+        message: `Recycling request ${request.id} has been marked as recycled.`
+      },
+      rejected: {
+        title: 'Recycling Request Rejected',
+        message: `Recycling request ${request.id} has been rejected.`
+      }
+    };
+    const notification = notificationMessages[nextStatus];
+    if (notification) {
+      this.notificationService.createNotification(
+        centreId,
+        'system',
+        notification.title,
+        notification.message,
+        '/centre/notifications',
+        request.id,
+        undefined,
+        undefined,
+        'RECYCLING_CENTRE'
+      );
+    }
+    return true;
+  }
+
+  private ensureCollectorTestRequest(collectorId: string): void {
+    if (collectorId !== 'COLLECTOR01') return;
+    const requests = this.getRequestsFromStorage();
+    if (requests.some(request => request.collectorId === collectorId || request.id === 'REQ01')) return;
+
+    const now = new Date();
+    const testRequest: WasteRequest = {
+      id: 'REQ01',
+      userId: 'USER01',
+      userName: 'USER01',
+      userPhone: '',
+      wasteTypes: ['organic'],
+      location: { latitude: -6.1639, longitude: 39.189, address: 'Stone Town' },
+      description: 'Household waste pickup',
+      requestedTime: new Date('2026-10-10T10:00:00'),
+      preferredDate: '2026-10-10',
+      preferredTime: '10:00',
+      collectionVerificationCode: this.generateCollectionVerificationCode(
+        new Set(requests.map(request => request.collectionVerificationCode).filter((code): code is string => !!code))
+      ),
+      collectorId,
+      collectorName: 'UrbanClean Collector',
+      assignedAt: now,
+      status: 'assigned',
+      statusHistory: [{ status: 'assigned', timestamp: now, notes: 'Demo assignment for Collector testing' }],
+      createdAt: now,
+      updatedAt: now
+    };
+    this.saveRequests([...requests, testRequest]);
   }
 
   getCollectorRecommendations(requestId: string): CollectorRecommendation[] {
@@ -264,7 +384,7 @@ export class RequestService {
             )
           : null;
         const currentAssignments = assignments.filter(item =>
-          item.collectorId === collector.id &&
+          (item.assignedCollectorId || item.collectorId) === collector.id &&
           item.id !== requestId &&
           !['completed', 'rejected'].includes(item.status)
         ).length;
@@ -306,6 +426,8 @@ export class RequestService {
 
     request.collectorId = recommendation.collector.id;
     request.collectorName = recommendation.collector.fullName;
+    request.assignedCollectorId = recommendation.collector.id;
+    request.assignedCollectorName = recommendation.collector.fullName;
     request.assignedAt = new Date();
     request.status = 'assigned';
     this.recordStatus(request, 'assigned', 'Collector assigned by Admin');
@@ -322,7 +444,7 @@ export class RequestService {
     const requests = this.getRequestsFromStorage();
     const request = requests.find(item => item.id === requestId);
     if (
-      !request || request.collectorId !== collectorId ||
+      !request || (request.assignedCollectorId || request.collectorId) !== collectorId ||
       !collector || collector.availability !== 'available' ||
       !['assigned', 'reschedule-required'].includes(request.status) ||
       !this.isValidSchedule(date, time) ||
@@ -340,11 +462,37 @@ export class RequestService {
     return true;
   }
 
+  verifyCollectionCode(requestId: string, collectorId: string, submittedCode: string): boolean {
+    const currentUser = this.authService.getCurrentUser();
+    if (!currentUser || currentUser.id !== collectorId || !this.authService.hasRole('COLLECTOR')) return false;
+    const requests = this.getRequestsFromStorage();
+    const request = requests.find(item => item.id === requestId);
+    if (
+      !request || (request.assignedCollectorId || request.collectorId) !== collectorId ||
+      !['scheduled', 'on-the-way'].includes(request.status) ||
+      ['completed', 'cancelled', 'rejected'].includes(request.status) ||
+      !request.collectionVerificationCode ||
+      request.collectionVerificationCode !== (submittedCode || '').trim().toUpperCase()
+    ) return false;
+
+    request.verifiedAt = new Date();
+    request.verifiedByCollector = collectorId;
+    request.status = 'collected';
+    this.recordStatus(request, 'collected', 'Collection verification code accepted by Collector');
+    this.saveRequests(requests);
+    this.notifyRequest(request, 'Collection Verified', `${request.id} was verified and marked as collected.`, 'NORMAL_USER');
+    this.notifyRequest(request, 'Collection Verified', `${request.id} was verified and marked as collected.`, 'ADMIN');
+    return true;
+  }
+
   approveProposedTime(requestId: string): boolean {
     if (!this.authService.hasAnyRole(['ADMIN', 'SUPER_ADMIN'])) return false;
     const requests = this.getRequestsFromStorage();
     const request = requests.find(item => item.id === requestId);
-    if (!request || request.status !== 'time-proposed' || !request.proposedCollectionDate || !request.proposedCollectionTime) return false;
+    if (
+      !request || request.status !== 'time-proposed' || !request.proposedCollectionDate ||
+      !request.proposedCollectionTime || !this.isValidSchedule(request.proposedCollectionDate, request.proposedCollectionTime)
+    ) return false;
 
     request.confirmedCollectionDate = request.proposedCollectionDate;
     request.confirmedCollectionTime = request.proposedCollectionTime;
@@ -381,17 +529,16 @@ export class RequestService {
     const request = requests.find(item => item.id === requestId);
     const allowedNext: Record<string, string> = {
       scheduled: 'on-the-way',
-      'on-the-way': 'collected',
       collected: 'completed'
     };
-    if (!request || request.collectorId !== collectorId || allowedNext[request.status] !== newStatus) return false;
+    if (!request || (request.assignedCollectorId || request.collectorId) !== collectorId || allowedNext[request.status] !== newStatus) return false;
 
     request.status = newStatus;
     this.recordStatus(request, newStatus, `Collector updated status to ${newStatus}`);
     if (newStatus === 'completed') {
       request.completionTime = new Date();
       request.completedAt = request.completionTime;
-      request.greenPoints = this.calculateGreenPoints(request);
+      request.recyclingStatus ||= 'ready-for-recycling';
     }
     this.saveRequests(requests);
     this.notifyRequest(request, 'Collection Status Updated', `${request.id} is now ${newStatus.replace('-', ' ')}.`, 'NORMAL_USER');
@@ -441,7 +588,8 @@ export class RequestService {
 
         if (newStatus === 'completed') {
           request.completionTime = new Date();
-          request.greenPoints = this.calculateGreenPoints(request);
+          request.completedAt = request.completionTime;
+          request.recyclingStatus ||= 'ready-for-recycling';
         }
 
         localStorage.setItem('urbanclean_requests', JSON.stringify(requests));
@@ -528,7 +676,8 @@ export class RequestService {
 
     if (normalizedStatus === 'completed') {
       request.completionTime = new Date();
-      request.greenPoints = this.calculateGreenPoints(request);
+      request.completedAt = request.completionTime;
+      request.recyclingStatus ||= 'ready-for-recycling';
     }
 
     localStorage.setItem('urbanclean_requests', JSON.stringify(requests));
@@ -605,7 +754,7 @@ export class RequestService {
 
     return this.getRequestsFromStorage().filter(request => {
       if (
-        request.collectorId !== collectorId ||
+        (request.assignedCollectorId || request.collectorId) !== collectorId ||
         request.id === excludeRequestId ||
         !['assigned', 'time-proposed', 'scheduled', 'on-the-way', 'collected'].includes(request.status)
       ) return false;
@@ -618,9 +767,7 @@ export class RequestService {
   }
 
   private isValidSchedule(date: string, time: string): boolean {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return false;
-    const scheduledAt = new Date(`${date}T${time}:00`);
-    return !Number.isNaN(scheduledAt.getTime()) && scheduledAt.getTime() >= Date.now();
+    return isFutureTanzaniaDateTime(date, time);
   }
 
   private timeToMinutes(time?: string): number | null {
@@ -662,22 +809,6 @@ export class RequestService {
       role === 'COLLECTOR' ? request.collectorName : request.userName,
       role
     );
-  }
-
-  private calculateGreenPoints(request: WasteRequest): number {
-    // Base points per waste type
-    const points = (request.wasteTypes?.length || 1) * 10;
-    
-    // Bonus for on-time completion (if completed within 24 hours)
-    const createdAtTime = request.createdAt ? new Date(request.createdAt).getTime() : 0;
-    const timeDiff = new Date().getTime() - createdAtTime;
-    const hoursElapsed = timeDiff / (1000 * 60 * 60);
-    
-    if (hoursElapsed <= 24) {
-      return points + 5;
-    }
-    
-    return points;
   }
 
   private getRequestsFromStorage(): WasteRequest[] {

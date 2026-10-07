@@ -7,6 +7,7 @@ import { RequestService } from '../../../core/services/request.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { WasteRequest, RequestStatus } from '../../../core/models/request.model';
 import { User } from '../../../core/models/user.model';
+import { formatDateOnly, formatTime12Hour, formatTanzaniaInstant } from '../../../core/utils/tanzania-date-time';
 
 @Component({
   selector: 'app-user-requests',
@@ -57,8 +58,8 @@ import { User } from '../../../core/models/user.model';
               <th>Preferred Date / Time</th>
               <th>Confirmed Collection</th>
               <th>Collector</th>
+              <th>Collection Verification Code</th>
               <th>Status</th>
-              <th>Eco Points</th>
               <th>Action</th>
             </tr>
           </thead>
@@ -71,16 +72,22 @@ import { User } from '../../../core/models/user.model';
                 <span class="waste-type-tag" *ngFor="let type of req.wasteTypes">{{ type }}</span>
               </td>
               <td class="address-cell">{{ req.location?.address || 'N/A' }}</td>
-              <td>{{ req.preferredDate ? (req.preferredDate | date:'mediumDate') : 'No preference' }}<br />{{ req.preferredTime || '' }}</td>
-              <td *ngIf="req.confirmedCollectionDate; else awaitingSchedule">{{ req.confirmedCollectionDate | date:'mediumDate' }} {{ req.confirmedCollectionTime }}</td>
+              <td>{{ req.preferredDate ? formatDate(req.preferredDate) : 'No preference' }}<br />{{ formatTime(req.preferredTime) }}</td>
+              <td *ngIf="req.confirmedCollectionDate; else awaitingSchedule">{{ formatDate(req.confirmedCollectionDate) }} {{ formatTime(req.confirmedCollectionTime) }}</td>
               <ng-template #awaitingSchedule><td>Not scheduled</td></ng-template>
               <td>{{ req.collectorName || 'Not assigned' }}</td>
+              <td>
+                <div *ngIf="canShowCollectionCode(req); else codeHidden" class="collection-code">
+                  <strong>{{ req.collectionVerificationCode }}</strong>
+                  <small>Give this code to the assigned Collector when they arrive to collect your waste.</small>
+                </div>
+                <ng-template #codeHidden>Not available yet</ng-template>
+              </td>
               <td>
                 <span class="status-badge" [style.background-color]="getStatusColor(req.status)">
                   {{ getStatusLabel(req.status) }}
                 </span>
               </td>
-              <td class="points-cell">{{ req.greenPoints || 0 }} pts</td>
               <td>
                 <button class="btn-details" (click)="openDetails(req)">View Details</button>
               </td>
@@ -130,15 +137,15 @@ import { User } from '../../../core/models/user.model';
               </div>
               <div class="detail-item">
                 <span class="detail-label">Preferred Date / Time</span>
-                <span class="detail-value">{{ selectedRequest.preferredDate ? (selectedRequest.preferredDate | date:'mediumDate') : 'No preference' }} {{ selectedRequest.preferredTime || '' }}</span>
+                <span class="detail-value">{{ selectedRequest.preferredDate ? formatDate(selectedRequest.preferredDate) : 'No preference' }} {{ formatTime(selectedRequest.preferredTime) }}</span>
               </div>
               <div class="detail-item" *ngIf="selectedRequest.proposedCollectionDate">
                 <span class="detail-label">Collector Proposal</span>
-                <span class="detail-value">{{ selectedRequest.proposedCollectionDate | date:'mediumDate' }} at {{ selectedRequest.proposedCollectionTime }}</span>
+                <span class="detail-value">{{ formatDate(selectedRequest.proposedCollectionDate) }} at {{ formatTime(selectedRequest.proposedCollectionTime) }}</span>
               </div>
               <div class="detail-item" *ngIf="selectedRequest.confirmedCollectionDate">
                 <span class="detail-label">Confirmed Collection</span>
-                <span class="detail-value">{{ selectedRequest.confirmedCollectionDate | date:'mediumDate' }} at {{ selectedRequest.confirmedCollectionTime }}</span>
+                <span class="detail-value">{{ formatDate(selectedRequest.confirmedCollectionDate) }} at {{ formatTime(selectedRequest.confirmedCollectionTime) }}</span>
               </div>
               <div class="detail-item full-width">
                 <span class="detail-label">Pickup Location</span>
@@ -152,9 +159,10 @@ import { User } from '../../../core/models/user.model';
                 <span class="detail-label">Assigned Collector</span>
                 <span class="detail-value font-bold">{{ selectedRequest.collectorName }}</span>
               </div>
-              <div class="detail-item">
-                <span class="detail-label">Eco Points</span>
-                <span class="detail-value font-bold" style="color: #16a085;">{{ selectedRequest.greenPoints || 0 }} Eco Points</span>
+              <div class="detail-item full-width" *ngIf="canShowCollectionCode(selectedRequest)">
+                <span class="detail-label">Collection Verification Code</span>
+                <span class="collection-code-value">{{ selectedRequest.collectionVerificationCode }}</span>
+                <span class="detail-value">Give this code to the assigned Collector when they arrive to collect your waste.</span>
               </div>
             </div>
 
@@ -166,7 +174,7 @@ import { User } from '../../../core/models/user.model';
                   <div class="timeline-dot" [style.background-color]="getStatusColor(item.status)"></div>
                   <div class="timeline-info">
                     <strong>{{ getStatusLabel(item.status) }}</strong>
-                    <span class="timeline-date">{{ item.timestamp | date:'medium' }}</span>
+                    <span class="timeline-date">{{ formatTanzaniaInstant(item.timestamp) }}</span>
                     <p *ngIf="item.notes" class="timeline-notes">{{ item.notes }}</p>
                   </div>
                 </div>
@@ -301,6 +309,9 @@ import { User } from '../../../core/models/user.model';
       font-size: 13px;
       letter-spacing: 0.5px;
     }
+    .collection-code { display:grid; gap:4px; min-width:150px; }
+    .collection-code strong, .collection-code-value { color:#166534; font-family:ui-monospace, SFMono-Regular, monospace; font-size:14px; font-weight:800; }
+    .collection-code small { max-width:230px; color:#64748b; font-size:10px; line-height:1.35; }
     .waste-type-tag {
       display: inline-block;
       background: #f1f5f9;
@@ -571,6 +582,18 @@ export class RequestsComponent implements OnInit, OnDestroy {
     this.router.navigate(['/user/request']);
   }
 
+  formatDate(date?: string): string {
+    return formatDateOnly(date);
+  }
+
+  formatTime(time?: string): string {
+    return formatTime12Hour(time);
+  }
+
+  formatTanzaniaInstant(value?: Date | string): string {
+    return formatTanzaniaInstant(value);
+  }
+
   getStatusColor(status: RequestStatus | string): string {
     const colors: { [key: string]: string } = {
       'pending': '#f39c12',
@@ -607,5 +630,9 @@ export class RequestsComponent implements OnInit, OnDestroy {
       'accepted': 'Accepted'
     };
     return labels[status] || status;
+  }
+
+  canShowCollectionCode(request: WasteRequest): boolean {
+    return ['scheduled', 'on-the-way', 'collected', 'completed'].includes(request.status) && !!request.collectionVerificationCode;
   }
 }
